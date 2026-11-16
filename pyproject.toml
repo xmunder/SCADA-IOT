@@ -1,0 +1,35 @@
+[project]
+name = "scada-iot"
+version = "0.1.0"
+description = "Prototipo de telemetría OPC UA hacia AWS IoT Core y Amazon DynamoDB"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "asyncua>=1.1,<2",
+    "paho-mqtt>=2.0,<3",
+    "boto3>=1.34",
+    "botocore[crt]>=1.44.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.17.5",
+]
+
+[tool.uv]
+# Proyecto de aplicación, no paquete instalable.
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+# E/F: errores y pyflakes; I: orden de imports; B: bugs probables; UP: sintaxis moderna.
+select = ["E", "F", "I", "B", "UP"]
+# E501: el ancho lo controla el formateador; las cadenas largas en español no se parten.
+ignore = ["E501"]

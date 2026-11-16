@@ -1,0 +1,4 @@
+level_tags,repetitions,loss_pct_mean,loss_pct_std,achieved_rate_readings_s_mean,achieved_rate_readings_s_std,puback_p95_ms_mean,puback_p95_ms_std,ingest_p50_ms_mean,ingest_p50_ms_std,ingest_p95_ms_mean,ingest_p95_ms_std,ingest_p99_ms_mean,ingest_p99_ms_std,est_write_cost_usd_total
+200,3,0.0,0.0,199.26,0.0,112.222,1.105,111.764,3.584,173.097,12.575,243.764,27.129,0.1122
+1000,3,0.0,0.0,995.963,0.038,111.473,0.871,114.292,3.739,170.959,6.886,253.625,17.031,0.5622
+5000,3,0.0,0.0,4978.803,0.116,110.519,0.287,6918.37,11783.057,48243.037,83213.121,89678.704,154796.472,2.8107

@@ -1,0 +1,293 @@
+{
+  "table": "scada_cold_test_1794868696",
+  "rate_target": 5000.0,
+  "phase_seconds": 150.0,
+  "phases": [
+    {
+      "phase": 1,
+      "started_ms": 1794868717913,
+      "since_creation_s": 0.0,
+      "attempted": 750000,
+      "served": 661950,
+      "throttled": 88050,
+      "throttled_pct": 11.74,
+      "windows": [
+        {
+          "from_s": 0,
+          "attempted": 38975,
+          "served": 38871,
+          "throttled": 104,
+          "served_per_s": 3887.1,
+          "throttled_pct": 0.27
+        },
+        {
+          "from_s": 10,
+          "attempted": 29550,
+          "served": 29550,
+          "throttled": 0,
+          "served_per_s": 2955.0,
+          "throttled_pct": 0.0
+        },
+        {
+          "from_s": 20,
+          "attempted": 38900,
+          "served": 38900,
+          "throttled": 0,
+          "served_per_s": 3890.0,
+          "throttled_pct": 0.0
+        },
+        {
+          "from_s": 30,
+          "attempted": 43400,
+          "served": 42741,
+          "throttled": 659,
+          "served_per_s": 4274.1,
+          "throttled_pct": 1.52
+        },
+        {
+          "from_s": 40,
+          "attempted": 39900,
+          "served": 39164,
+          "throttled": 736,
+          "served_per_s": 3916.4,
+          "throttled_pct": 1.84
+        },
+        {
+          "from_s": 50,
+          "attempted": 51900,
+          "served": 41606,
+          "throttled": 10294,
+          "served_per_s": 4160.6,
+          "throttled_pct": 19.83
+        },
+        {
+          "from_s": 60,
+          "attempted": 53225,
+          "served": 39944,
+          "throttled": 13281,
+          "served_per_s": 3994.4,
+          "throttled_pct": 24.95
+        },
+        {
+          "from_s": 70,
+          "attempted": 45275,
+          "served": 39988,
+          "throttled": 5287,
+          "served_per_s": 3998.8,
+          "throttled_pct": 11.68
+        },
+        {
+          "from_s": 80,
+          "attempted": 49775,
+          "served": 39927,
+          "throttled": 9848,
+          "served_per_s": 3992.7,
+          "throttled_pct": 19.79
+        },
+        {
+          "from_s": 90,
+          "attempted": 45950,
+          "served": 40099,
+          "throttled": 5851,
+          "served_per_s": 4009.9,
+          "throttled_pct": 12.73
+        },
+        {
+          "from_s": 100,
+          "attempted": 43650,
+          "served": 39677,
+          "throttled": 3973,
+          "served_per_s": 3967.7,
+          "throttled_pct": 9.1
+        },
+        {
+          "from_s": 110,
+          "attempted": 49575,
+          "served": 40340,
+          "throttled": 9235,
+          "served_per_s": 4034.0,
+          "throttled_pct": 18.63
+        },
+        {
+          "from_s": 120,
+          "attempted": 48100,
+          "served": 41338,
+          "throttled": 6762,
+          "served_per_s": 4133.8,
+          "throttled_pct": 14.06
+        },
+        {
+          "from_s": 130,
+          "attempted": 45550,
+          "served": 41327,
+          "throttled": 4223,
+          "served_per_s": 4132.7,
+          "throttled_pct": 9.27
+        },
+        {
+          "from_s": 140,
+          "attempted": 50375,
+          "served": 42460,
+          "throttled": 7915,
+          "served_per_s": 4246.0,
+          "throttled_pct": 15.71
+        },
+        {
+          "from_s": 150,
+          "attempted": 49225,
+          "served": 42204,
+          "throttled": 7021,
+          "served_per_s": 4220.4,
+          "throttled_pct": 14.26
+        },
+        {
+          "from_s": 160,
+          "attempted": 26675,
+          "served": 23814,
+          "throttled": 2861,
+          "served_per_s": 2381.4,
+          "throttled_pct": 10.73
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "started_ms": 1794868883997,
+      "since_creation_s": 166.1,
+      "attempted": 750000,
+      "served": 637435,
+      "throttled": 112565,
+      "throttled_pct": 15.01,
+      "windows": [
+        {
+          "from_s": 0,
+          "attempted": 45400,
+          "served": 42285,
+          "throttled": 3115,
+          "served_per_s": 4228.5,
+          "throttled_pct": 6.86
+        },
+        {
+          "from_s": 10,
+          "attempted": 48475,
+          "served": 42058,
+          "throttled": 6417,
+          "served_per_s": 4205.8,
+          "throttled_pct": 13.24
+        },
+        {
+          "from_s": 20,
+          "attempted": 52300,
+          "served": 42915,
+          "throttled": 9385,
+          "served_per_s": 4291.5,
+          "throttled_pct": 17.94
+        },
+        {
+          "from_s": 30,
+          "attempted": 53250,
+          "served": 43267,
+          "throttled": 9983,
+          "served_per_s": 4326.7,
+          "throttled_pct": 18.75
+        },
+        {
+          "from_s": 40,
+          "attempted": 50025,
+          "served": 42422,
+          "throttled": 7603,
+          "served_per_s": 4242.2,
+          "throttled_pct": 15.2
+        },
+        {
+          "from_s": 50,
+          "attempted": 50025,
+          "served": 42416,
+          "throttled": 7609,
+          "served_per_s": 4241.6,
+          "throttled_pct": 15.21
+        },
+        {
+          "from_s": 60,
+          "attempted": 50000,
+          "served": 42403,
+          "throttled": 7597,
+          "served_per_s": 4240.3,
+          "throttled_pct": 15.19
+        },
+        {
+          "from_s": 70,
+          "attempted": 50000,
+          "served": 42385,
+          "throttled": 7615,
+          "served_per_s": 4238.5,
+          "throttled_pct": 15.23
+        },
+        {
+          "from_s": 80,
+          "attempted": 49975,
+          "served": 42387,
+          "throttled": 7588,
+          "served_per_s": 4238.7,
+          "throttled_pct": 15.18
+        },
+        {
+          "from_s": 90,
+          "attempted": 49975,
+          "served": 42387,
+          "throttled": 7588,
+          "served_per_s": 4238.7,
+          "throttled_pct": 15.18
+        },
+        {
+          "from_s": 100,
+          "attempted": 50000,
+          "served": 42415,
+          "throttled": 7585,
+          "served_per_s": 4241.5,
+          "throttled_pct": 15.17
+        },
+        {
+          "from_s": 110,
+          "attempted": 50050,
+          "served": 42416,
+          "throttled": 7634,
+          "served_per_s": 4241.6,
+          "throttled_pct": 15.25
+        },
+        {
+          "from_s": 120,
+          "attempted": 49975,
+          "served": 42382,
+          "throttled": 7593,
+          "served_per_s": 4238.2,
+          "throttled_pct": 15.19
+        },
+        {
+          "from_s": 130,
+          "attempted": 50000,
+          "served": 42411,
+          "throttled": 7589,
+          "served_per_s": 4241.1,
+          "throttled_pct": 15.18
+        },
+        {
+          "from_s": 140,
+          "attempted": 49775,
+          "served": 42290,
+          "throttled": 7485,
+          "served_per_s": 4229.0,
+          "throttled_pct": 15.04
+        },
+        {
+          "from_s": 150,
+          "attempted": 775,
+          "served": 596,
+          "throttled": 179,
+          "served_per_s": 59.6,
+          "throttled_pct": 23.1
+        }
+      ]
+    }
+  ]
+}

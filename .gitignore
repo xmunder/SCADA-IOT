@@ -1,0 +1,30 @@
+# Entornos y caché
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Credenciales y certificados: nunca se versionan
+certs/
+*.pem
+*.key
+*.crt
+.env
+
+# Datos locales del buffer y resultados de pruebas
+*.db
+*.db-wal
+*.db-shm
+
+# Resultados de pruebas: solo se versionan las corridas citadas en la documentación (ver loadtest/results/README.md).
+# Las demás (cortes que no cortaban, matrices abortadas, validaciones) quedan fuera a propósito.
+loadtest/results/*
+!loadtest/results/README.md
+!loadtest/results/matriz-us-east-2-v2/
+!loadtest/results/gateway-200-us-east-2/
+!loadtest/results/corte-5min-us-east-2/
+!loadtest/results/cold-table-test/
+
+# Artefactos de AWS SAM
+infra/.aws-sam/
+.atl

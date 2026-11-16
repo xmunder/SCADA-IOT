@@ -1,0 +1,9 @@
+# Normaliza los finales de línea: el repositorio guarda LF y evita el aviso LF/CRLF en Windows.
+* text=auto eol=lf
+
+# Binarios: Git no debe tocarlos.
+*.docx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.db binary

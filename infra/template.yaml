@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Ingesta de telemetría SCADA desde AWS IoT Core hacia Amazon DynamoDB
+
+Parameters:
+  TableName:
+    Type: String
+    Default: scada_telemetry
+
+  # Vacío (por defecto): SAM crea un rol de mínimo privilegio solo con escritura en la tabla.
+  # Para reutilizar un rol IAM existente (cuentas que no permiten crear roles) indique su nombre.
+  ExecutionRoleName:
+    Type: String
+    Default: ""
+
+Conditions:
+  UseExistingRole: !Not [!Equals [!Ref ExecutionRoleName, ""]]
+
+Resources:
+  TelemetryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref TableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: series
+          AttributeType: S
+        - AttributeName: ts_ms
+          AttributeType: N
+      KeySchema:
+        - AttributeName: series
+          KeyType: HASH
+        - AttributeName: ts_ms
+          KeyType: RANGE
+
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ingest/
+      Handler: app.handler
+      Runtime: python3.12
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          TELEMETRY_TABLE: !Ref TelemetryTable
+      Role: !If
+        - UseExistingRole
+        - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ExecutionRoleName}"
+        - !Ref AWS::NoValue
+      # SAM ignora Policies cuando se indica un Role explícito.
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref TelemetryTable
+      Events:
+        Telemetry:
+          Type: IoTRule
+          Properties:
+            Sql: "SELECT * FROM 'plant/+/telemetry'"
+
+Outputs:
+  TableName:
+    Value: !Ref TelemetryTable

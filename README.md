@@ -118,6 +118,7 @@ Todos los comandos usan las variables de `.env` (`uv run --env-file .env ...`).
 | Latencia y continuidad con el gateway real (incluye lotes en el borde) | `python -m loadtest.gateway_report --start-ms <ms> --end-ms <ms> --tags 200 --table scada_telemetry` | Percentiles de latencia y pérdida estimada por huecos en los tags analógicos. |
 | Límite de escritura de una tabla DynamoDB nueva (hipótesis de la tabla fría) | `python -m loadtest.ddb_cold_test --rate 5000 --phase-seconds 150 --phases 2` | Items servidos y rechazados por ventana en dos fases seguidas; crea una tabla temporal y la elimina. |
 | Política de mínimo privilegio de IoT Core | `python -m infra.check_policy --site PLANTA-01` | Comprueba que se publica en el tema propio y se rechazan el tema y el cliente ajenos. |
+| Compromiso latencia/mensajes del gateway real (intervalo de vaciado) | `python -m loadtest.flush_sweep --intervals 0.1,0.25,0.5,1.0,2.0 --tags 200 --table scada_telemetry --name flush-sweep` | Para cada intervalo: latencia p50/p95/p99, mensajes por segundo y continuidad. Levanta el simulador y el gateway solo. |
 | Recuperación tras un corte de enlace | `python -m loadtest.outage_test --duration 300` (PowerShell como administrador) | Acumulación máxima, tiempo de detección y de recuperación, y la serie temporal del buffer. |
 
 Notas de uso:
@@ -137,9 +138,13 @@ Notas de uso:
   de adelanto). `clock_check` usa SNTP (UDP 123); el encabezado HTTP `Date`, de resolución de 1 s, solo
   es el último recurso y llegó a dar el signo contrario. En Windows, sincronice con `w32tm /resync` desde una
   consola de administrador.
-- `ddb_cold_test` escribe directamente en DynamoDB, sin IoT Core ni Lambda, para aislar el límite de una tabla
-  nueva bajo demanda (se observó un techo de ~4,000 escrituras por segundo). Desactiva los reintentos del SDK
-  para ver la limitación. Una corrida de 2 × 150 s a 5,000 items/s cuesta menos de 1 USD en escrituras.
+- `flush_sweep` ejecuta el simulador OPC UA y el gateway por su cuenta (no los lance antes) y mide cada intervalo de
+  `GATEWAY_FLUSH_INTERVAL_S` con la cadena completa. Mide el desfase de reloj por SNTP antes y después de cada
+  intervalo y lo resta de las latencias.
+- `ddb_cold_test` escribe directamente en DynamoDB, sin IoT Core ni Lambda, para aislar el comportamiento de una
+  tabla nueva bajo demanda: sostiene ~4,000 escrituras por segundo al principio y tarda unos 7 minutos de presión
+  sostenida en ajustarse a 5,000. Desactiva los reintentos del SDK para ver la limitación. Una corrida de
+  8 × 150 s a 5,000 items/s cuesta unos 3.5 USD en escrituras.
 - `check_policy` exige detener el gateway antes: IoT Core desconecta a un cliente cuando otro usa su `client_id`.
 - `gateway_report` mide la cadena completa (simulador, gateway, IoT Core, Lambda y DynamoDB). OPC UA
   solo notifica cuando un valor cambia, así que la pérdida se estima por huecos en la serie de los

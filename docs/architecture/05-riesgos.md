@@ -16,5 +16,5 @@ Probabilidad e impacto son **estimaciones cualitativas del autor**, no cálculos
 | R9 | DynamoDB no es una base de series de tiempo: sin consultas por ventana ni retención por capas | Alta | Medio | Documentado; alternativas en trabajo futuro (TimescaleDB, Timestream for InfluxDB). **Aceptado** |
 | R10 | En un corte prolongado el disco del gateway crece sin límite | Baja | Medio | Se puede vigilar `pending()`; sin alarma ni tope. **Parcial** |
 | R11 | Evidencia con pocas repeticiones (3 corridas de 5 min, 3 cortes, una corrida por intervalo de vaciado) y un solo sitio | Alta | Medio | Declarado en `loadtest/results/README.md`. **Abierto** |
-| R12 | El gateway se detiene si el servidor OPC UA no está disponible, en vez de reintentar | Media | Medio | No corregido. **Abierto** |
+| R12 | El servidor OPC UA deja de estar disponible mientras el gateway corre | Media | Medio | El gateway reintenta con retroceso exponencial y retoma la suscripción; se detecta la caída leyendo el estado del servidor cada 2 s. Probado con el simulador (278 lecturas en 20 s tras reiniciarlo). **Mitigado** |
 | R13 | Las cuotas de AWS cambian (p. ej. 100 publicaciones/s por conexión en IoT Core) | Baja | Medio | El lote de 100 lecturas mantiene 50 mensajes/s a 5,000 tags. **Aceptado** |

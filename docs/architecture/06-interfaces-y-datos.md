@@ -68,3 +68,4 @@ Cada dispositivo puede únicamente:
 | `GATEWAY_BATCH_SIZE` | No | `100` |
 | `GATEWAY_FLUSH_INTERVAL_S` | No | `1.0` |
 | `GATEWAY_INFLIGHT_WINDOW` | No | `16` |
+| `OPC_RECONNECT_MAX_S` | No | `30` |

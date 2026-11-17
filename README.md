@@ -207,7 +207,10 @@ El flujo de integración continua (`.github/workflows/ci.yml`) ejecuta estos cua
   de IoT Core.
 - `mqtt_load` exige `--readings-per-msg` menor o igual a `--tags`: un tag repetido en el
   mismo lote tendría la misma clave y se contaría como pérdida.
-- El gateway se detiene si el servidor OPC UA no está disponible, en vez de reintentar la conexión.
+- Si el servidor OPC UA deja de estar disponible, el gateway reintenta la conexión con retroceso exponencial
+  (de 1 s hasta `OPC_RECONNECT_MAX_S`, 30 s por defecto) y retoma la suscripción solo; mientras tanto no se recogen
+  lecturas de la planta, pero el buffer sigue enviando lo ya guardado. La caída se detecta leyendo el estado del
+  servidor cada 2 s, de modo que tarda unos segundos en notarse.
 - Una tabla DynamoDB bajo demanda recién creada sostiene unas 4,000 escrituras por segundo: una carga mayor se
   retrasa hasta que la capacidad se ajusta (ver `loadtest/ddb_cold_test.py` y el [registro de riesgos](docs/architecture/05-riesgos.md)).
 

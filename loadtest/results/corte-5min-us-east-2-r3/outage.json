@@ -1,0 +1,11 @@
+{
+  "run_name": "corte-5min-us-east-2-r3",
+  "outage_s": 300.85,
+  "baseline_pending_max": 2,
+  "backlog_max": 499,
+  "backlog_at_restore": 480,
+  "backlog_start_s": 4.03,
+  "recovery_s": 17.26,
+  "recovered": true,
+  "tolerance": 2
+}

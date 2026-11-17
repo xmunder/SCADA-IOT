@@ -1,0 +1,20 @@
+{
+  "window_s": 337.8,
+  "tags_with_data": 200,
+  "items": 45457,
+  "items_per_s": 134.6,
+  "ingest_latency": {
+    "p50_ms": 147278.0,
+    "p95_ms": 296560.0,
+    "p99_ms": 309657.0,
+    "max_ms": 313191.0,
+    "mean_ms": 147330.20080515652
+  },
+  "raw_latency_min_ms": 161.0,
+  "clock_offset_ms": -67.0,
+  "analog_tags": 134,
+  "analog_readings": 44005,
+  "estimated_missing": 0,
+  "estimated_loss_pct": 0.0,
+  "verified_at_ms": 1794877573153
+}

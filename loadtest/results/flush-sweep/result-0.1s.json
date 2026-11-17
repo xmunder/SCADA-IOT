@@ -1,0 +1,24 @@
+{
+  "flush_interval_s": 0.1,
+  "tags": 200,
+  "clock_offset_ms": -67.8,
+  "clock_uncertainty_ms": 45.6,
+  "readings_per_s": 134.55,
+  "messages_per_s": 1.945,
+  "window_s": 120.0,
+  "tags_with_data": 200,
+  "items": 16140,
+  "items_per_s": 134.5,
+  "ingest_latency": {
+    "p50_ms": 501.84170866012573,
+    "p95_ms": 807.8417086601257,
+    "p99_ms": 833.8417086601257,
+    "max_ms": 850.8417086601257,
+    "mean_ms": 505.8755996142769
+  },
+  "raw_latency_min_ms": 138.0,
+  "analog_tags": 134,
+  "analog_readings": 15678,
+  "estimated_missing": 0,
+  "estimated_loss_pct": 0.0
+}

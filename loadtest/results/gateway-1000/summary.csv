@@ -1,0 +1,2 @@
+flush_interval_s,tags,items,items_per_s,readings_per_s,messages_per_s,p50_ms,p95_ms,p99_ms,max_ms,analog_tags,estimated_missing,clock_offset_ms,clock_uncertainty_ms
+1.0,1000,111717,620.6,619.89,6.447,493.0,1287.0,1639.0,1752.0,667,0,-69.0,42.2

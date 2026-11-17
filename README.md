@@ -142,8 +142,8 @@ Notas de uso:
   `GATEWAY_FLUSH_INTERVAL_S` con la cadena completa. Mide el desfase de reloj por SNTP antes y después de cada
   intervalo y lo resta de las latencias.
 - `ddb_cold_test` escribe directamente en DynamoDB, sin IoT Core ni Lambda, para aislar el comportamiento de una
-  tabla nueva bajo demanda: sostiene ~4,000 escrituras por segundo al principio y tarda unos 7 minutos de presión
-  sostenida en ajustarse a 5,000. Desactiva los reintentos del SDK para ver la limitación. Una corrida de
+  tabla nueva bajo demanda: sostiene ~4,000 escrituras por segundo al principio y, en nuestra prueba, tardó unos 7 minutos de
+  presión sostenida en ajustarse a 5,000 (no es un plazo que AWS garantice). Desactiva los reintentos del SDK para ver la limitación. Una corrida de
   8 × 150 s a 5,000 items/s cuesta unos 3.5 USD en escrituras.
 - `check_policy` exige detener el gateway antes: IoT Core desconecta a un cliente cuando otro usa su `client_id`.
 - `gateway_report` mide la cadena completa (simulador, gateway, IoT Core, Lambda y DynamoDB). OPC UA

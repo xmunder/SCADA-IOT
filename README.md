@@ -171,7 +171,8 @@ Notas de uso:
 ## Desarrollo
 
 ```powershell
-uv run pytest                    # pruebas unitarias (sin acceso a AWS)
+uv run pytest                    # unitarias, de contrato e integración local (sin acceso a AWS)
+uv run pytest -m "not integration"  # solo las rápidas, sin levantar el servidor OPC UA
 uv run ruff check .              # lint
 uv run ruff format --check .     # formato
 uvx cfn-lint infra/template.yaml # validación de la plantilla

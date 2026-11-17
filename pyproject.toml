@@ -23,6 +23,9 @@ package = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: usa un servidor OPC UA real en localhost (sin AWS); omitir con -m 'not integration'",
+]
 
 [tool.ruff]
 line-length = 120

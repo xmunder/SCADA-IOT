@@ -75,10 +75,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Aprovisiona un gateway en AWS IoT Core")
     parser.add_argument("--site", required=True, help="Identificador del sitio (nombre del Thing)")
     parser.add_argument("--out", default="certs", help="Carpeta de salida para certificados")
+    parser.add_argument(
+        "--policy-only",
+        action="store_true",
+        help="Solo publica la política actual como nueva versión (para un gateway ya aprovisionado)",
+    )
     args = parser.parse_args()
-
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
 
     session = boto3.session.Session()
     region = session.region_name
@@ -87,6 +89,14 @@ def main() -> None:
 
     account_id = session.client("sts").get_caller_identity()["Account"]
     iot = session.client("iot")
+
+    if args.policy_only:
+        ensure_policy(iot, region, account_id)
+        print(f"Política '{POLICY_NAME}' actualizada; el certificado y el Thing existentes no cambian.")
+        return
+
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     iot.create_thing(thingName=args.site)
     keys = iot.create_keys_and_certificate(setAsActive=True)

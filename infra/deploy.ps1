@@ -4,11 +4,15 @@
 # La cuenta usada en las pruebas solo permite us-east-2.
 # Para reutilizar un rol IAM existente (cuentas que no permiten crear roles) agregue: -ExecutionRoleName <rol>
 # Con un perfil del CLI distinto del predeterminado agregue: -Profile personal
+# Para recibir las alarmas por correo agregue: -AlarmEmail <correo> (SNS enviará un mensaje que hay que confirmar).
+# El sitio de las alarmas y del panel es el nombre del Thing del gateway (-SiteId, PLANTA-01 por defecto).
 param(
     [string]$Region = "us-east-2",
     [string]$StackName = "scada-iot-ingest",
     [string]$ExecutionRoleName = "",
-    [string]$Profile = ""
+    [string]$Profile = "",
+    [string]$SiteId = "PLANTA-01",
+    [string]$AlarmEmail = ""
 )
 $ErrorActionPreference = "Stop"
 
@@ -33,7 +37,7 @@ try {
     Write-Host "3/3 Desplegando la pila '$StackName'..." -ForegroundColor Cyan
     sam deploy --stack-name $StackName --region $Region `
         --resolve-s3 --capabilities CAPABILITY_IAM `
-        --parameter-overrides "ExecutionRoleName=$ExecutionRoleName" `
+        --parameter-overrides "ExecutionRoleName=$ExecutionRoleName" "SiteId=$SiteId" "AlarmEmail=$AlarmEmail" `
         --no-confirm-changeset --no-fail-on-empty-changeset
     if ($LASTEXITCODE -ne 0) { throw "sam deploy falló" }
 }

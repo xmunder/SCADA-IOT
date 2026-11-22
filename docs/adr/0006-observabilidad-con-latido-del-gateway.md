@@ -31,8 +31,14 @@ ampliaría su superficie de seguridad.
 - (−) La detección de un gateway caído tarda unos 3 minutos (3 minutos sin latido). Con los datos faltantes tratados solo
   como incumplimiento tardó unos 8.5 minutos en una prueba real, porque CloudWatch amplía la ventana de evaluación en las
   métricas esporádicas; `FILL(m1, 0)` la reduce a ~3 minutos (183 s medidos).
-- (−) Verificado en AWS (una sola corrida): el latido llega a CloudWatch cada 15 s, las métricas de estado y la alarma de
-  ausencia de latido (pasa a OK con el gateway y a ALARM sin él), y `check_policy` con el tema de estado. **Sin verificar**: el
-  aviso por correo, la alarma de cola grande y la forma del panel durante un corte real de 5 minutos.
+- (−) Verificado en AWS (una sola corrida de cada prueba): el latido llega a CloudWatch cada 15 s, las métricas de estado,
+  la alarma de ausencia de latido (pasa a OK con el gateway y a ALARM sin él) y `check_policy` con el tema de estado. En un
+  corte real de 5 minutos (`corte-observabilidad`, 501 lotes en cola) la alarma de ausencia de latido saltó a los ~3.5 min
+  del corte y volvió a OK 2 min después de reconectar; la alarma de cola grande saltó **después** de reconectar y duró un
+  minuto. **Sin verificar**: el aviso por correo.
+- (−) **El latido viaja por el mismo enlace que se corta**, así que durante el corte no llega: el panel muestra un hueco, no
+  una cola que crece. El tamaño de la cola (469 lotes en el primer latido tras reconectar) solo se ve al volver el enlace.
+  Durante el corte la señal útil es la ausencia de latido. Ver la cola crecer en vivo exigiría un canal independiente
+  (un registro local con su propia alarma o un segundo enlace); no se hizo.
 - (−) La prueba real mostró que `check_policy` publicaba un mensaje inválido que hacía fallar la Lambda de ingesta y disparaba
   la alarma de errores; la Lambda ahora lo cuenta como rechazado.

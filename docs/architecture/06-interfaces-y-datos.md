@@ -75,7 +75,7 @@ gateway, para que un reloj desfasado no oculte un latido.
 | Limitaciones de la Lambda de ingesta | Hay invocaciones limitadas en un minuto |
 | Lecturas rechazadas | Hay lecturas rechazadas en un minuto |
 | Latencia p95 | Supera `LatencyP95ThresholdMs` (5,000 ms) tres minutos seguidos |
-| Cola del gateway | Supera `PendingBatchesThreshold` (200 lotes) |
+| Cola del gateway | Supera `PendingBatchesThreshold` (200 lotes); con un enlace cortado solo se ve al reconectar |
 | Sesión OPC UA perdida | `GatewayOpcConnected` baja de 1 dos minutos seguidos |
 | Ausencia de latido | No llega ningún latido en tres minutos (cada minuto sin latido se evalúa como 0): salta ~3 min después de detener el gateway |
 

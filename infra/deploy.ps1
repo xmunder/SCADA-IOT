@@ -35,9 +35,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "sam build falló" }
 
     Write-Host "3/3 Desplegando la pila '$StackName'..." -ForegroundColor Cyan
+    # sam deploy rechaza un parámetro con valor vacío ("Nombre="): solo se pasan los que tienen valor y el resto
+    # toma el valor por defecto de la plantilla.
+    $overrides = @("SiteId=$SiteId")
+    if ($ExecutionRoleName) { $overrides += "ExecutionRoleName=$ExecutionRoleName" }
+    if ($AlarmEmail) { $overrides += "AlarmEmail=$AlarmEmail" }
     sam deploy --stack-name $StackName --region $Region `
         --resolve-s3 --capabilities CAPABILITY_IAM `
-        --parameter-overrides "ExecutionRoleName=$ExecutionRoleName" "SiteId=$SiteId" "AlarmEmail=$AlarmEmail" `
+        --parameter-overrides $overrides `
         --no-confirm-changeset --no-fail-on-empty-changeset
     if ($LASTEXITCODE -ne 0) { throw "sam deploy falló" }
 }

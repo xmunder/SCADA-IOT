@@ -47,7 +47,13 @@ def build_items(event: dict[str, Any], received_ms: int) -> tuple[list[dict[str,
     site = str(event["site"])
     items: list[dict[str, Any]] = []
     rejected = 0
-    for reading in event.get("readings", []):
+    readings = event.get("readings", [])
+    if not isinstance(readings, list):
+        return items, 1
+    for reading in readings:
+        if not isinstance(reading, dict):
+            rejected += 1
+            continue
         try:
             if reading.get("quality") != "GOOD":
                 rejected += 1
@@ -106,6 +112,12 @@ def build_emf(site: str, written: int, rejected: int, latencies_ms: list[int], t
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, int]:
     received_ms = int(time.time() * 1000)
+    if not isinstance(event, dict) or not event.get("site"):
+        # Un mensaje sin sitio no se puede atribuir ni reintentar con éxito: se cuenta como rechazado y no falla la
+        # invocación (IoT Core reintentaría dos veces un mensaje que seguiría igual de inválido).
+        logger.warning("mensaje sin sitio descartado")
+        print(json.dumps(build_emf("unknown", 0, 1, [], received_ms)))
+        return {"written": 0, "rejected": 1}
     items, rejected = build_items(event, received_ms)
     if items:
         write_items(_dynamodb_table(), items)

@@ -112,3 +112,33 @@ def test_emf_without_latencies_does_not_declare_the_latency_metric():
         "ReadingsWritten",
         "ReadingsRejected",
     ]
+
+
+def _run_handler(event):
+    import io
+    from contextlib import redirect_stdout
+
+    import app
+
+    app._table = object()  # no debe usarse: un mensaje inválido no escribe nada
+    buffer = io.StringIO()
+    try:
+        with redirect_stdout(buffer):
+            result = app.handler(event, None)
+    finally:
+        app._table = None
+    return result, buffer.getvalue()
+
+
+def test_a_message_without_site_is_counted_as_rejected_instead_of_failing_the_invocation():
+    """Regresión: {"check": "policy"} provocaba KeyError y IoT Core reintentaba la invocación dos veces."""
+    result, output = _run_handler({"check": "policy"})
+    assert result == {"written": 0, "rejected": 1}
+    assert '"ReadingsRejected": 1' in output
+
+
+def test_readings_that_are_not_a_list_or_not_objects_are_rejected_not_fatal():
+    items, rejected = build_items({"site": "PLANTA-01", "readings": "no-es-una-lista"}, received_ms=1)
+    assert items == [] and rejected == 1
+    items, rejected = build_items({"site": "PLANTA-01", "readings": ["x", 3, None]}, received_ms=1)
+    assert items == [] and rejected == 3

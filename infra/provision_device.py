@@ -21,7 +21,12 @@ ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
 
 
 def policy_document(region: str, account_id: str) -> dict:
-    """Política de mínimo privilegio: cada gateway solo se conecta y publica en su propio tema."""
+    """Política de mínimo privilegio: cada gateway solo se conecta y publica en sus propios temas.
+
+    Son dos: la telemetría y el estado (latido). Ambos llevan su nombre de Thing, así que un gateway no puede
+    publicar en los de otro sitio.
+    """
+    topic = f"arn:aws:iot:{region}:{account_id}:topic/plant/${{iot:Connection.Thing.ThingName}}"
     return {
         "Version": "2012-10-17",
         "Statement": [
@@ -33,21 +38,32 @@ def policy_document(region: str, account_id: str) -> dict:
             {
                 "Effect": "Allow",
                 "Action": "iot:Publish",
-                "Resource": f"arn:aws:iot:{region}:{account_id}:topic/plant/${{iot:Connection.Thing.ThingName}}/telemetry",
+                "Resource": [f"{topic}/telemetry", f"{topic}/status"],
             },
         ],
     }
 
 
+MAX_POLICY_VERSIONS = 5  # límite de IoT Core por política
+
+
 def ensure_policy(iot, region: str, account_id: str) -> None:
+    """Crea la política o, si ya existe, publica el documento actual como nueva versión predeterminada.
+
+    Así un gateway ya aprovisionado recibe los permisos nuevos sin cambiar de certificado.
+    """
+    document = json.dumps(policy_document(region, account_id))
     try:
-        iot.create_policy(
-            policyName=POLICY_NAME,
-            policyDocument=json.dumps(policy_document(region, account_id)),
-        )
+        iot.create_policy(policyName=POLICY_NAME, policyDocument=document)
+        return
     except ClientError as err:
         if err.response["Error"]["Code"] != "ResourceAlreadyExistsException":
             raise
+    versions = iot.list_policy_versions(policyName=POLICY_NAME)["policyVersions"]
+    if len(versions) >= MAX_POLICY_VERSIONS:
+        oldest = min((v for v in versions if not v["isDefaultVersion"]), key=lambda v: int(v["versionId"]))
+        iot.delete_policy_version(policyName=POLICY_NAME, policyVersionId=oldest["versionId"])
+    iot.create_policy_version(policyName=POLICY_NAME, policyDocument=document, setAsDefault=True)
 
 
 def download_root_ca(destination: Path) -> None:

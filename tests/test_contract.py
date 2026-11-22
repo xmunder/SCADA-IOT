@@ -66,3 +66,13 @@ def test_published_topic_matches_the_iot_rule_in_the_template(site_id):
     sql = re.search(r'Sql:\s*"SELECT \* FROM \'([^\']+)\'"', TEMPLATE.read_text(encoding="utf8"))
     assert sql, "la plantilla ya no define la regla de IoT Core esperada"
     assert _topic_matches(sql.group(1), topic_for(site_id))
+
+
+@pytest.mark.parametrize("site_id", ["PLANTA-01", "SITE_2", "p1"])
+def test_status_topic_matches_the_status_rule_in_the_template(site_id):
+    from gateway.payload import status_topic_for
+
+    sql = re.search(r"Sql:\s*\"SELECT \* FROM '(plant/\+/status)'\"", TEMPLATE.read_text(encoding="utf8"))
+    assert sql, "la plantilla ya no define la regla de estado esperada"
+    assert _topic_matches(sql.group(1), status_topic_for(site_id))
+    assert not _topic_matches(sql.group(1), topic_for(site_id))  # la regla de estado no recibe telemetría

@@ -44,6 +44,8 @@ flowchart TB
         DDB[("DynamoDB bajo demanda<br/>series + ts_ms")]
         CW["CloudWatch<br/>logs y métricas EMF ScadaIot"]
         IOT --> RULE --> LMB
+        RULE -. "modo queue" .-> SQS["Cola SQS de ingesta<br/>y cola de fallidos"]
+        SQS -. "lotes, tope de concurrencia" .-> LMB
         IOT --> SRULE --> STL
         STL -.-> CW
         LMB -- "BatchWriteItem" --> DDB

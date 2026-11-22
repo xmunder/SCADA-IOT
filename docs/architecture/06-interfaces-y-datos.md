@@ -24,6 +24,22 @@
 
 Un lote lleva hasta 100 lecturas (`GATEWAY_BATCH_SIZE`) o las acumuladas durante `GATEWAY_FLUSH_INTERVAL_S`.
 
+## Cola de ingesta (modo `queue`)
+
+Con `IngestMode=queue` la regla de IoT deja cada mensaje del gateway, sin cambios, en una cola SQS. La Lambda de ingesta lee de ella
+en lotes y escribe todas sus lecturas en una sola operación. Parámetros de la plantilla:
+
+| Parámetro | Valor por defecto | Efecto |
+|---|---|---|
+| `IngestBatchSize` | 10 mensajes | Hasta 1,000 lecturas por invocación (cada mensaje trae hasta 100) |
+| `IngestBatchWindowSeconds` | 1 | Cuánto espera la Lambda para juntar el lote |
+| `IngestMaxConcurrency` | 10 | Copias de la Lambda leyendo a la vez: es el tope de la velocidad de escritura a DynamoDB |
+| `QueueAgeThresholdSeconds` | 300 | Edad del mensaje más antiguo que dispara la alarma |
+
+Si la escritura falla, solo vuelven a la cola los mensajes que tenían lecturas válidas (respuesta de fallos parciales). Tras cinco
+intentos fallidos un mensaje pasa a la cola de fallidos, que conserva 14 días y tiene su propia alarma. Un cuerpo que no es JSON válido no
+se reintenta: se cuenta como rechazado.
+
 ## Mensaje de estado (latido)
 
 Cada `GATEWAY_STATUS_INTERVAL_S` el gateway publica su estado en `plant/<site>/status`. Es de mejor esfuerzo: no pasa por el
@@ -76,6 +92,8 @@ gateway, para que un reloj desfasado no oculte un latido.
 | Lecturas rechazadas | Hay lecturas rechazadas en un minuto |
 | Latencia p95 | Supera `LatencyP95ThresholdMs` (5,000 ms) tres minutos seguidos |
 | Cola del gateway | Supera `PendingBatchesThreshold` (200 lotes); con un enlace cortado solo se ve al reconectar |
+| Edad de la cola de ingesta | El mensaje más antiguo espera más de `QueueAgeThresholdSeconds` (modo `queue`) |
+| Mensajes en la cola de fallidos | Hay algún mensaje que falló cinco veces |
 | Sesión OPC UA perdida | `GatewayOpcConnected` baja de 1 dos minutos seguidos |
 | Ausencia de latido | No llega ningún latido en tres minutos (cada minuto sin latido se evalúa como 0): salta ~3 min después de detener el gateway |
 

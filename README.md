@@ -63,6 +63,11 @@ No hace falta activar el entorno manualmente.
 
    Anote el nombre de la tabla que muestra la salida (por defecto `scada_telemetry`).
 
+   Por defecto la regla de IoT invoca la Lambda (`-IngestMode direct`). Con `-IngestMode queue` la regla escribe en una cola
+   SQS y la Lambda la lee en lotes, con un tope de concurrencia y una cola de mensajes fallidos: absorbe los picos de carga y no
+   pierde mensajes si la Lambda o la tabla fallan. Se puede cambiar de modo sin perder lo ya escrito. Otros parámetros:
+   `-TableName <tabla>` (una tabla nueva sirve para probar el arranque en frío) y `-Parameter "IngestMaxConcurrency=5"`.
+
    La región por defecto es `us-east-2`: la cuenta personal usada en las pruebas bloquea las demás
    regiones con una política de organización. Si usa otra región,
    exporte también `AWS_REGION` antes de `provision_device.py` y los scripts de `loadtest`.

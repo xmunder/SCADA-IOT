@@ -158,8 +158,14 @@ Notas de uso:
   cuándo el cliente MQTT declara la desconexión. `recovery_s` incluye la espera de reconexión
   del cliente (retroceso exponencial de hasta 30 s) y el vaciado, y tolera `--tolerance` lotes
   (2 por defecto) sobre la línea base, que es el ruido normal de mensajes en vuelo.
-- La Lambda publica métricas en CloudWatch (espacio de nombres `ScadaIot`, dimensión `Site`):
-  `ReadingsWritten`, `ReadingsRejected` e `IngestLatencyMs`, con percentiles nativos.
+- Las métricas de CloudWatch (espacio `ScadaIot`, dimensión `Site`) vienen de dos Lambdas. La de ingesta emite
+  `ReadingsWritten`, `ReadingsRejected` e `IngestLatencyMs`, con percentiles nativos. La de estado convierte el latido
+  del gateway en `GatewayHeartbeat`, `GatewayPendingBatches`, `GatewayOpcConnected`, `GatewayMqttConnected` y
+  `GatewayReadingsDropped`.
+- La plantilla crea siete alarmas y un panel de CloudWatch (`<pila>-<sitio>`): errores y limitaciones de la Lambda,
+  lecturas rechazadas, latencia p95, cola del gateway, sesión OPC UA perdida y ausencia de latido (gateway caído). Para
+  recibir los avisos por correo despliegue con `-AlarmEmail <correo>` y confirme la suscripción SNS. Un gateway ya
+  aprovisionado necesita la política nueva: `uv run python infra/provision_device.py --site PLANTA-01 --policy-only`.
 - `run_matrix` espera (hasta `--max-wait`) a que termine la ingesta antes de contar la pérdida:
   con carga alta DynamoDB aplica límites de escritura y la Lambda reintenta, por lo que los
   items pueden llegar decenas de segundos tarde. Medir antes cuenta como pérdida lo que solo
@@ -203,9 +209,9 @@ El flujo de integración continua (`.github/workflows/ci.yml`) ejecuta estos cua
   usan las métricas `ScadaIot` de CloudWatch que emite la Lambda.
 - Por defecto SAM crea para la Lambda un rol limitado a escribir en la tabla. Si se indica
   `ExecutionRoleName` se reutiliza un rol existente, que puede ser más permisivo que el mínimo necesario.
-- El tamaño de la cola local del gateway se registra en su log y `outage_test` lo muestrea
-  del buffer SQLite; no se publica en CloudWatch porque el gateway solo tiene credenciales
-  de IoT Core.
+- El tamaño de la cola local del gateway llega a CloudWatch por el latido (`plant/<sitio>/status`), que viaja por IoT
+  Core: el gateway sigue sin tener credenciales de AWS más allá de IoT Core. El latido es de mejor esfuerzo y no
+  pasa por el buffer. `outage_test` sigue muestreando el buffer SQLite directamente.
 - `mqtt_load` exige `--readings-per-msg` menor o igual a `--tags`: un tag repetido en el
   mismo lote tendría la misma clave y se contaría como pérdida.
 - Si el servidor OPC UA deja de estar disponible, el gateway reintenta la conexión con retroceso exponencial

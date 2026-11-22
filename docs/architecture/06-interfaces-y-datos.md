@@ -59,16 +59,32 @@ solo tras el PUBACK de IoT Core.
 
 ## Métricas EMF (CloudWatch)
 
-Espacio `ScadaIot`, dimensión `Site`: `ReadingsWritten`, `ReadingsRejected` e `IngestLatencyMs`. La latencia se emite
-como lista de hasta 100 valores por invocación para que CloudWatch calcule percentiles; en la métrica se recorta a 0
-(en DynamoDB se guarda cruda).
+Espacio `ScadaIot`, dimensión `Site`. La Lambda de ingesta emite `ReadingsWritten`, `ReadingsRejected` e
+`IngestLatencyMs`. La latencia se emite como lista de hasta 100 valores por invocación para que CloudWatch calcule
+percentiles; en la métrica se recorta a 0 (en DynamoDB se guarda cruda).
+
+La Lambda de estado emite, por cada latido, `GatewayHeartbeat` (siempre 1), `GatewayPendingBatches`,
+`GatewayOpcConnected`, `GatewayMqttConnected` (0 o 1) y `GatewayReadingsDropped`. Usa la hora de la Lambda, no la del
+gateway, para que un reloj desfasado no oculte un latido.
+
+## Alarmas
+
+| Alarma | Se activa cuando |
+|---|---|
+| Errores de la Lambda de ingesta | Hay errores en un minuto |
+| Limitaciones de la Lambda de ingesta | Hay invocaciones limitadas en un minuto |
+| Lecturas rechazadas | Hay lecturas rechazadas en un minuto |
+| Latencia p95 | Supera `LatencyP95ThresholdMs` (5,000 ms) tres minutos seguidos |
+| Cola del gateway | Supera `PendingBatchesThreshold` (200 lotes) |
+| Sesión OPC UA perdida | `GatewayOpcConnected` baja de 1 dos minutos seguidos |
+| Ausencia de latido | No llega ningún latido en tres minutos; los datos que faltan cuentan como incumplimiento |
 
 ## Política de IoT Core
 
 Cada dispositivo puede únicamente:
 
 - `iot:Connect` con un identificador de cliente igual al nombre de su Thing;
-- `iot:Publish` en `plant/<nombre del Thing>/telemetry`.
+- `iot:Publish` en `plant/<nombre del Thing>/telemetry` y en `plant/<nombre del Thing>/status`.
 
 ## Configuración del gateway (variables de entorno)
 

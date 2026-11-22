@@ -76,3 +76,18 @@ def test_status_topic_matches_the_status_rule_in_the_template(site_id):
     assert sql, "la plantilla ya no define la regla de estado esperada"
     assert _topic_matches(sql.group(1), status_topic_for(site_id))
     assert not _topic_matches(sql.group(1), topic_for(site_id))  # la regla de estado no recibe telemetría
+
+
+def test_the_ingest_lambda_reads_a_gateway_batch_delivered_through_sqs():
+    from tests.test_ingest_sqs import FakeTable
+
+    readings = [Reading("Tag_0000", 1.5, 1_700_000_000_000), Reading("Tag_0001", 2.5, 1_700_000_000_500)]
+    body = encode_batch("PLANTA-01", readings).decode("utf-8")  # la regla de IoT deja el mensaje tal cual en la cola
+    table = FakeTable()
+    ingest._table = table
+    try:
+        result = ingest.handler({"Records": [{"messageId": "m1", "body": body}]}, None)
+    finally:
+        ingest._table = None
+    assert result == {"batchItemFailures": []}
+    assert sorted(i["series"] for i in table.items) == ["PLANTA-01#Tag_0000", "PLANTA-01#Tag_0001"]

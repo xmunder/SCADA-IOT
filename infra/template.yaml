@@ -36,7 +36,42 @@ Parameters:
     Type: Number
     Default: 200
 
+  # direct: la regla de IoT invoca la Lambda (como antes). queue: la regla deja el mensaje en una cola SQS y la Lambda lo
+  # lee en lotes. La cola absorbe los picos (por ejemplo una tabla nueva de DynamoDB que aún no escala) y no pierde
+  # mensajes si la Lambda falla. Cambiar de modo no pierde datos ya escritos.
+  IngestMode:
+    Type: String
+    Default: direct
+    AllowedValues: [direct, queue]
+
+  # Solo en modo queue. Cada mensaje trae hasta 100 lecturas, así que un lote de 10 son hasta 1,000 items.
+  IngestBatchSize:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 1000
+
+  IngestBatchWindowSeconds:
+    Type: Number
+    Default: 1
+    MinValue: 0
+    MaxValue: 300
+
+  # Copias de la Lambda leyendo la cola a la vez. Es el tope de la velocidad de escritura a DynamoDB.
+  IngestMaxConcurrency:
+    Type: Number
+    Default: 10
+    MinValue: 2
+    MaxValue: 1000
+
+  # Edad (s) del mensaje más antiguo de la cola por encima de la cual salta la alarma.
+  QueueAgeThresholdSeconds:
+    Type: Number
+    Default: 300
+
 Conditions:
+  UseDirect: !Equals [!Ref IngestMode, direct]
+  UseQueue: !Equals [!Ref IngestMode, queue]
   UseExistingRole: !Not [!Equals [!Ref ExecutionRoleName, ""]]
   HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
 
@@ -76,11 +111,91 @@ Resources:
       Policies:
         - DynamoDBWritePolicy:
             TableName: !Ref TelemetryTable
-      Events:
-        Telemetry:
-          Type: IoTRule
-          Properties:
-            Sql: "SELECT * FROM 'plant/+/telemetry'"
+        - SQSPollerPolicy:
+            QueueName: !GetAtt IngestQueue.QueueName
+
+  # Cola de ingesta y su cola de mensajes fallidos. Existen siempre; solo se usan en modo queue.
+  IngestDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+
+  IngestQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      # Seis veces el tiempo de espera de la Lambda, como recomienda AWS para evitar reentregas innecesarias.
+      VisibilityTimeout: 180
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt IngestDeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  # Modo direct: la regla invoca la Lambda.
+  DirectTelemetryRule:
+    Type: AWS::IoT::TopicRule
+    Condition: UseDirect
+    Properties:
+      TopicRulePayload:
+        Sql: "SELECT * FROM 'plant/+/telemetry'"
+        RuleDisabled: false
+        Actions:
+          - Lambda:
+              FunctionArn: !GetAtt IngestFunction.Arn
+
+  DirectTelemetryPermission:
+    Type: AWS::Lambda::Permission
+    Condition: UseDirect
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref IngestFunction
+      Principal: iot.amazonaws.com
+      SourceArn: !GetAtt DirectTelemetryRule.Arn
+
+  # Modo queue: la regla escribe en la cola y la Lambda la lee en lotes.
+  IotToQueueRole:
+    Type: AWS::IAM::Role
+    Condition: UseQueue
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: iot.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SendToIngestQueue
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt IngestQueue.Arn
+
+  QueueTelemetryRule:
+    Type: AWS::IoT::TopicRule
+    Condition: UseQueue
+    Properties:
+      TopicRulePayload:
+        Sql: "SELECT * FROM 'plant/+/telemetry'"
+        RuleDisabled: false
+        Actions:
+          - Sqs:
+              QueueUrl: !Ref IngestQueue
+              RoleArn: !GetAtt IotToQueueRole.Arn
+              UseBase64: false
+
+  IngestQueueMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: UseQueue
+    Properties:
+      EventSourceArn: !GetAtt IngestQueue.Arn
+      FunctionName: !Ref IngestFunction
+      BatchSize: !Ref IngestBatchSize
+      MaximumBatchingWindowInSeconds: !Ref IngestBatchWindowSeconds
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+      ScalingConfig:
+        MaximumConcurrency: !Ref IngestMaxConcurrency
 
   # Convierte el latido del gateway en métricas. No tiene permisos sobre DynamoDB.
   StatusFunction:
@@ -140,6 +255,40 @@ Resources:
         - Name: FunctionName
           Value: !Ref IngestFunction
       Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  QueueAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: El mensaje más antiguo de la cola de ingesta lleva demasiado tiempo esperando
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt IngestQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: !Ref QueueAgeThresholdSeconds
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  DeadLetterQueueAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Hay mensajes en la cola de fallidos (fallaron cinco veces); hay que revisarlos
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt IngestDeadLetterQueue.QueueName
+      Statistic: Maximum
       Period: 60
       EvaluationPeriods: 1
       Threshold: 0
@@ -285,6 +434,17 @@ Resources:
                 ["AWS/Lambda", "Errors", "FunctionName", "${IngestFunction}", {"stat": "Sum"}],
                 ["AWS/Lambda", "Throttles", "FunctionName", "${IngestFunction}", {"stat": "Sum"}],
                 ["AWS/Lambda", "Invocations", "FunctionName", "${IngestFunction}", {"stat": "Sum"}]
+              ]}},
+            {"type": "metric", "x": 0, "y": 18, "width": 12, "height": 6, "properties": {
+              "title": "Cola de ingesta: mensajes pendientes y fallidos", "region": "${AWS::Region}", "period": 60, "view": "timeSeries",
+              "metrics": [
+                ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "${IngestQueue.QueueName}", {"stat": "Maximum"}],
+                ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "${IngestDeadLetterQueue.QueueName}", {"stat": "Maximum"}]
+              ]}},
+            {"type": "metric", "x": 12, "y": 18, "width": 12, "height": 6, "properties": {
+              "title": "Cola de ingesta: edad del mensaje más antiguo (s)", "region": "${AWS::Region}", "period": 60, "view": "timeSeries",
+              "metrics": [
+                ["AWS/SQS", "ApproximateAgeOfOldestMessage", "QueueName", "${IngestQueue.QueueName}", {"stat": "Maximum"}]
               ]}}
           ]
         }
@@ -294,3 +454,7 @@ Outputs:
     Value: !Ref TelemetryTable
   DashboardName:
     Value: !Ref Dashboard
+  IngestMode:
+    Value: !Ref IngestMode
+  IngestQueueName:
+    Value: !GetAtt IngestQueue.QueueName

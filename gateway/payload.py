@@ -36,6 +36,10 @@ def topic_for(site_id: str) -> str:
     return f"plant/{site_id}/telemetry"
 
 
+def status_topic_for(site_id: str) -> str:
+    return f"plant/{site_id}/status"
+
+
 def build_batch(site_id: str, readings: Iterable[Reading]) -> dict[str, Any]:
     return {"site": site_id, "readings": [asdict(r) for r in readings]}
 

@@ -27,6 +27,7 @@ class LambdaPublisher:
     """Sustituye al cliente MQTT: cada mensaje publicado se procesa como lo haría la Lambda."""
 
     items: list[dict] = []
+    statuses: list[dict] = []
 
     def __init__(self, _cfg) -> None:
         pass
@@ -37,7 +38,13 @@ class LambdaPublisher:
     def stop(self) -> None:
         pass
 
-    def publish(self, _topic: str, payload: bytes) -> bool:
+    def is_connected(self) -> bool:
+        return True
+
+    def publish(self, topic: str, payload: bytes) -> bool:
+        if topic.endswith("/status"):
+            LambdaPublisher.statuses.append(json.loads(payload))
+            return True
         items, _rejected = ingest.build_items(json.loads(payload), int(time.time() * 1000))
         LambdaPublisher.items.extend(items)
         return True
@@ -66,6 +73,7 @@ def test_readings_flow_end_to_end_and_survive_an_opc_ua_server_restart(tmp_path,
     monkeypatch.setattr("gateway.main.IotPublisher", LambdaPublisher)
     monkeypatch.setattr(opc_reader, "HEALTH_CHECK_INTERVAL_S", 0.2)
     LambdaPublisher.items = []
+    LambdaPublisher.statuses = []
     port = _free_port()
     endpoint = f"opc.tcp://127.0.0.1:{port}/scada-iot/simulador"
     cfg = GatewayConfig.from_env(
@@ -80,6 +88,7 @@ def test_readings_flow_end_to_end_and_survive_an_opc_ua_server_restart(tmp_path,
             "BUFFER_PATH": str(tmp_path / "buffer.db"),
             "GATEWAY_FLUSH_INTERVAL_S": "0.2",
             "OPC_RECONNECT_MAX_S": "1",
+            "GATEWAY_STATUS_INTERVAL_S": "0.3",
         }
     )
 
@@ -94,8 +103,16 @@ def test_readings_flow_end_to_end_and_survive_an_opc_ua_server_restart(tmp_path,
             first = LambdaPublisher.items[0]
             assert first["series"] == f"PLANTA-01#{first['tag']}"
 
+            await _wait_until(
+                lambda: any(s["opc_connected"] for s in LambdaPublisher.statuses), 10, "latido con OPC UA conectado"
+            )
+
             await _stop(simulator)  # cae el servidor OPC UA
-            await asyncio.sleep(1.5)
+            await _wait_until(
+                lambda: LambdaPublisher.statuses and not LambdaPublisher.statuses[-1]["opc_connected"],
+                10,
+                "latido que informa la caída de OPC UA",
+            )
             assert not gateway.done(), "el gateway no debe detenerse si cae el servidor OPC UA"
             restart_ms = int(time.time() * 1000)
             before = len(LambdaPublisher.items)

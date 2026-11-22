@@ -24,6 +24,19 @@
 
 Un lote lleva hasta 100 lecturas (`GATEWAY_BATCH_SIZE`) o las acumuladas durante `GATEWAY_FLUSH_INTERVAL_S`.
 
+## Mensaje de estado (latido)
+
+Cada `GATEWAY_STATUS_INTERVAL_S` el gateway publica su estado en `plant/<site>/status`. Es de mejor esfuerzo: no pasa por el
+buffer, porque un estado atrasado no sirve, y su ausencia es lo que dispara la alarma de gateway caído.
+
+| Campo | Contenido |
+|---|---|
+| `type` | Siempre `status` |
+| `site`, `ts_ms` | Sitio e instante de la medición |
+| `pending` | Lotes esperando en la cola local |
+| `batches_sent`, `readings_in`, `readings_dropped` | Contadores desde el arranque |
+| `mqtt_connected`, `opc_connected` | Estado de las dos conexiones |
+
 ## Almacenamiento en DynamoDB
 
 Un item por lectura válida. Clave de partición `series` y clave de orden `ts_ms`.
@@ -69,3 +82,4 @@ Cada dispositivo puede únicamente:
 | `GATEWAY_FLUSH_INTERVAL_S` | No | `1.0` |
 | `GATEWAY_INFLIGHT_WINDOW` | No | `16` |
 | `OPC_RECONNECT_MAX_S` | No | `30` |
+| `GATEWAY_STATUS_INTERVAL_S` | No | `15` |

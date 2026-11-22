@@ -1,0 +1,41 @@
+tabla=scada_telemetry_c modo: queue
+=== E2b: cola de fallidos con observación larga 20:35:36Z
+}
++30 s: cola 0/4 fallidos 0/0
++69 s: cola 0/4 fallidos 0/0
++108 s: cola 0/4 fallidos 0/0
++148 s: cola 0/4 fallidos 0/0
++187 s: cola 0/4 fallidos 0/0
++226 s: cola 0/4 fallidos 0/0
++265 s: cola 0/3 fallidos 0/0
++304 s: cola 0/2 fallidos 1/0
++343 s: cola 0/2 fallidos 2/0
++382 s: cola 0/2 fallidos 2/0
++421 s: cola 0/2 fallidos 2/0
++461 s: cola 0/0 fallidos 4/0
++500 s: cola 0/0 fallidos 4/0
++539 s: cola 0/0 fallidos 4/0
++578 s: cola 0/0 fallidos 4/0
++618 s: cola 0/0 fallidos 4/0
++657 s: cola 0/0 fallidos 4/0
++696 s: cola 0/0 fallidos 4/0
++735 s: cola 0/0 fallidos 4/0
++775 s: cola 0/0 fallidos 4/0
++813 s: cola 0/0 fallidos 4/0
++850 s: cola 0/0 fallidos 4/0
++887 s: cola 0/0 fallidos 4/0
++924 s: cola 0/0 fallidos 4/0
+tabla restaurada; cola 0/0 fallidos 4/0 20:51:26Z
+reproceso iniciado 20:51:29Z
+tras reprocesar: cola 0/0 fallidos 0/0
+COMPLETED	4
+  "readings_expected": 40,
+  "readings_stored_distinct": 40,
+  "lost_readings": 0,
+  "loss_pct": 0.0,
+  "tags_with_loss": 0,
+  "lost_by_tag": {},
+  "verified_at_ms": 1795380848572
+}
+== fin 20:54:08Z
+restaurado: tabla=scada_telemetry_c visibilidad=180

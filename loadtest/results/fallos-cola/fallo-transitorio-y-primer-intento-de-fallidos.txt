@@ -1,0 +1,33 @@
+tabla=scada_telemetry_c modo: queue
+=== E1: fallo transitorio 20:23:42Z
+  "generated_at": "2026-11-22T20:24:19.656358+00:00"
+}
+mensajes (visibles/en vuelo) con la tabla rota: 0/0 cola de fallidos: 0/0 20:24:24Z
+a los ~70 s: cola 0/59 fallidos 0/0
+tabla restaurada 20:25:08Z
+tras restaurar: cola 0/0 fallidos 0/0
+  "readings_expected": 5900,
+  "readings_stored_distinct": 5900,
+  "lost_readings": 0,
+  "loss_pct": 0.0,
+  "tags_with_loss": 0,
+  "lost_by_tag": {},
+  "verified_at_ms": 1795379268247
+}
+=== E2: mensajes a la cola de fallidos y reproceso 20:27:48Z
+  "generated_at": "2026-11-22T20:27:57.841990+00:00"
+}
+tras ~3.5 min con la tabla rota: cola 0/5 fallidos 0/0 20:31:34Z
+reproceso iniciado 20:31:44Z
+tras reprocesar: cola 0/0 fallidos 0/0
+COMPLETED	0
+  "readings_expected": 50,
+  "readings_stored_distinct": 50,
+  "lost_readings": 0,
+  "loss_pct": 0.0,
+  "tags_with_loss": 0,
+  "lost_by_tag": {},
+  "verified_at_ms": 1795379636583
+}
+== fin 20:33:56Z
+restaurado: tabla=scada_telemetry_c visibilidad=180

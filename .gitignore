@@ -31,6 +31,13 @@ loadtest/results/*
 !loadtest/results/cola-directo/
 !loadtest/results/cola-sqs/
 !loadtest/results/cola-sqs-c20/
+!loadtest/results/fallos-cola/
+!loadtest/results/cola-directo-r2/
+!loadtest/results/cola-sqs-c20-r2/
+!loadtest/results/cola-sqs-c10/
+!loadtest/results/cola-sqs-c40/
+!loadtest/results/estable-cola-c20/
+!loadtest/results/estable-directo/
 !loadtest/results/corte-observabilidad/
 !loadtest/results/corte-5min-us-east-2-r2/
 !loadtest/results/corte-5min-us-east-2-r3/

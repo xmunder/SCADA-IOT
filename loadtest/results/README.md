@@ -17,6 +17,11 @@ Evidencia de las pruebas, obtenida en una única cuenta de AWS (us-east-2). Cada
 | `cola-directo/` | 5,000 tags contra una tabla DynamoDB nueva, `IngestMode=direct`, 1 corrida de 5 min | p95 de 181 s, p99 de 402 s; 713 errores y 6,778 limitaciones de la Lambda; 5.58 millones de escrituras limitadas de DynamoDB; 0 pérdida. |
 | `cola-sqs/` | Lo mismo con `IngestMode=queue` y `IngestMaxConcurrency=5` | **Peor**: p95 de 482 s. 0 errores y 0 limitaciones, pero el tope era menor que la tasa de llegada y la cola llegó a 9,028 mensajes (edad máxima 515 s). 0 pérdida. |
 | `cola-sqs-c20/` | Lo mismo con `IngestMaxConcurrency=20` | p95 de 104 s, p99 de 113 s, espera de ingesta de 172 s (frente a 445 s); 0 errores y 0 limitaciones de la Lambda; 1.7 millones de escrituras limitadas de DynamoDB; cola máxima de 3,407 mensajes (edad 104 s); cola de fallidos vacía; 0 pérdida. La mediana (41 s) es peor que la del modo directo (22 s). Una sola corrida de cada una: la variación entre tablas nuevas no se midió. |
+| `cola-directo-r2/` | Réplica de `cola-directo/` en otra tabla nueva | p95 de 200 s, espera de ingesta de 904 s, 853 errores de la Lambda; **5 lecturas perdidas** (IoT Core agotó sus reintentos). |
+| `cola-sqs-c20-r2/` | Réplica de `cola-sqs-c20/` en otra tabla nueva | p95 de 70 s, espera de 32 s, 0 errores, 0 pérdida. La variación entre tablas nuevas es grande. |
+| `cola-sqs-c10/`, `cola-sqs-c40/` | Cola con tope 10 y 40 | p95 de 69 s y 65 s; con 40, 4 errores de la Lambda y cola de hasta 215 s. 0 pérdida. |
+| `estable-cola-c20/`, `estable-directo/` | Tabla ya escalada, 5,000 tags | Cola: p50 0.6 s, p95 4.9 s. Directo: p50 0.11 s, p95 0.20 s. Ambos 0 pérdida. |
+| `fallos-cola/` | Fallo transitorio de la tabla y mensajes a la cola de fallidos con reproceso | 0 pérdida en ambos; los mensajes llegaron a la cola de fallidos en 5-8 min (visibilidad 30 s) y el reproceso los recuperó. |
 
 ## Corridas excluidas del repositorio (en `.gitignore`)
 

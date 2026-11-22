@@ -45,6 +45,38 @@ Una corrida de 5 minutos con 5,000 tags contra una tabla DynamoDB nueva, para ca
 - La mediana con tope 20 (41 s) es peor que la del modo directo (22 s): la cola ordena la espera y el reparto es más parejo, pero
   los mensajes que en el modo directo pasaban primero ahora esperan su turno.
 
+## Evidencia adicional (segunda ronda)
+
+Cinco corridas más de 5 minutos a 5,000 tags (`cola-directo-r2/`, `cola-sqs-c20-r2/`, `cola-sqs-c10/`, `cola-sqs-c40/`,
+`estable-cola-c20/`, `estable-directo/`). Las cuatro primeras, cada una en una tabla nueva.
+
+| Tabla nueva, 5,000 tags | p95 | p99 | Espera de ingesta | Errores Lambda | Lecturas perdidas |
+|---|---|---|---|---|---|
+| Directo, corrida 1 y 2 | 181 s · 200 s | 402 s · 459 s | 445 s · 904 s | 713 · 853 | 0 · **5** |
+| Cola tope 20, corrida 1 y 2 | 104 s · 70 s | 113 s · 88 s | 172 s · 32 s | 0 · 0 | 0 · 0 |
+| Cola tope 10 | 69 s | 76 s | 98 s | 0 | 0 |
+| Cola tope 40 | 65 s | 83 s | 113 s | 4 | 0 |
+
+- **El modo directo perdió 5 lecturas en la segunda corrida** (cinco tags, una lectura cada uno): IoT Core agotó sus reintentos
+  contra una Lambda saturada. Con la cola no se perdió ninguna lectura en ninguna corrida. Es la mejor evidencia a favor de la cola.
+- **La variación entre tablas nuevas es grande.** Con el mismo tope 20, la p95 fue de 104 s y de 70 s, y la espera de ingesta, de
+  172 s y de 32 s. En modo directo la espera fue de 445 s y de 904 s. Con dos corridas por configuración, la ventaja de la cola en
+  p95 (70-104 s frente a 181-200 s) es consistente, pero los números exactos no son reproducibles.
+- **Con tope 10, 20 y 40 los resultados son parecidos** (p95 entre 65 y 104 s). El tope 5 era el único claramente insuficiente.
+  Subir a 40 no mejoró y añadió errores de la Lambda (4) y una cola más vieja (215 s): el límite lo pone la tabla, no el tope.
+- **En estado estable (tabla ya escalada) la cola cuesta latencia:** p50 de 0.6 s y p95 de 4.9 s, frente a 0.11 s y 0.20 s en modo
+  directo. Es la ventana de espera del lote (`IngestBatchWindowSeconds`) más la lectura de la cola. La cola compra robustez ante
+  picos y fallos, no velocidad.
+
+## Fallos probados en AWS (`loadtest/results/fallos-cola/`)
+
+- **Fallo transitorio de la tabla (tabla inexistente durante ~45 s, 5,900 lecturas):** los mensajes volvieron a la cola, se
+  procesaron al restaurar la tabla y no se perdió ninguna lectura.
+- **Mensajes a la cola de fallidos:** con la tabla rota, los 4 mensajes llegaron a la cola de fallidos entre 5 y 8 minutos
+  (visibilidad de 30 s; con los 180 s de producción tardaría varias veces más). Al restaurar la tabla y reprocesar desde la cola de
+  fallidos (`start-message-move-task`), se movieron los 4 mensajes y las 40 lecturas quedaron guardadas.
+- El correo de las alarmas (SNS) sigue sin probarse.
+
 ## Consecuencias
 
 - (+) Sin errores ni limitaciones de la Lambda ante una tabla que aún no escala, y menos latencia de cola y tiempo de drenaje.
@@ -53,11 +85,11 @@ Una corrida de 5 minutos con 5,000 tags contra una tabla DynamoDB nueva, para ca
 - (−) Con el tope demasiado bajo, la latencia **empeora**. Hay que dimensionarlo con la tasa de llegada (5 resultó insuficiente a
   5,000 lecturas/s) y vigilar la edad de la cola. No se probaron topes intermedios ni mayores.
 - (−) La mediana sube respecto al modo directo y, en estado estable con la tabla ya ajustada, la cola añade la ventana de espera del
-  lote (`IngestBatchWindowSeconds`). Esa latencia en estado estable no se midió con la cola.
+  lote (`IngestBatchWindowSeconds`). En estado estable se midió: p95 de 4.9 s frente a 0.2 s en modo directo.
 - (−) Una pieza más (cola, cola de fallidos, un rol de IoT para escribir en la cola, un mapeo de la Lambda) y sus costos. Una cuenta que
   no permita crear roles no puede usar el modo `queue` sin adaptar la plantilla.
-- (−) **Evidencia limitada:** una corrida de cada configuración, cada una en una tabla nueva. No se midió cuánto varía el
-  arranque en frío entre tablas, así que las diferencias entre modos podrían deberse en parte a esa variación. La ruta de la cola de
-  fallidos y de los fallos parciales solo se probó con pruebas unitarias, no en AWS.
+- (−) **Evidencia limitada:** dos corridas por configuración como máximo (una sola con topes 10 y 40), y el arranque en frío varía
+  mucho entre tablas (ver la segunda ronda). Las cifras exactas no son reproducibles; la dirección (la cola reduce la p95 y evita
+  la pérdida) se repitió.
 - (−) La tabla nueva sigue limitando las escrituras (1.74 millones de eventos limitados con tope 20): la cola amortigua, pero no escala
   la tabla. Calentarla o aprovisionar capacidad no se evaluó.

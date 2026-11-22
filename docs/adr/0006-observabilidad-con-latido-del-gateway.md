@@ -28,5 +28,11 @@ ampliaría su superficie de seguridad.
 - (+) Es la base para medir el amortiguador SQS de la fase siguiente (edad y profundidad de la cola).
 - (−) Detecta la caída del gateway, no la remedia: sigue sin haber redundancia (R1).
 - (−) Una Lambda y una regla más, y el costo de las alarmas y del panel. El latido añade unos 5,760 mensajes al día.
-- (−) Las alarmas, el panel y el latido no se han probado desplegados en AWS; faltan esas comprobaciones.
-- (−) El latido a 15 s y las alarmas de tres minutos fijan una detección de unos tres a cuatro minutos.
+- (−) La detección de un gateway caído tarda unos 3 minutos (3 minutos sin latido). Con los datos faltantes tratados solo
+  como incumplimiento tardó unos 8.5 minutos en una prueba real, porque CloudWatch amplía la ventana de evaluación en las
+  métricas esporádicas; `FILL(m1, 0)` la reduce a ~3 minutos (183 s medidos).
+- (−) Verificado en AWS (una sola corrida): el latido llega a CloudWatch cada 15 s, las métricas de estado y la alarma de
+  ausencia de latido (pasa a OK con el gateway y a ALARM sin él), y `check_policy` con el tema de estado. **Sin verificar**: el
+  aviso por correo, la alarma de cola grande y la forma del panel durante un corte real de 5 minutos.
+- (−) La prueba real mostró que `check_policy` publicaba un mensaje inválido que hacía fallar la Lambda de ingesta y disparaba
+  la alarma de errores; la Lambda ahora lo cuenta como rechazado.

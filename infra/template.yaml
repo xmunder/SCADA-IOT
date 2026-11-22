@@ -216,19 +216,30 @@ Resources:
       TreatMissingData: notBreaching
       AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
 
-  # Sin latidos durante tres minutos: el gateway está caído o incomunicado. Los datos que falten se tratan como
-  # incumplimiento, que es justo lo que se quiere detectar.
+  # Sin latidos durante tres minutos: el gateway está caído o incomunicado. Con datos faltantes tratados como
+  # incumplimiento CloudWatch tardó unos 8.5 minutos en saltar (midió en una prueba real), porque amplía la ventana
+  # de evaluación en las métricas esporádicas. FILL(m1, 0) convierte cada minuto sin latido en un cero explícito
+  # y así la alarma se evalúa sobre los tres últimos minutos.
   GatewayHeartbeatMissingAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmDescription: El gateway dejó de enviar su latido
-      Namespace: ScadaIot
-      MetricName: GatewayHeartbeat
-      Dimensions:
-        - Name: Site
-          Value: !Ref SiteId
-      Statistic: Sum
-      Period: 60
+      Metrics:
+        - Id: m1
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: ScadaIot
+              MetricName: GatewayHeartbeat
+              Dimensions:
+                - Name: Site
+                  Value: !Ref SiteId
+            Period: 60
+            Stat: Sum
+        - Id: e1
+          Expression: FILL(m1, 0)
+          Label: Latidos por minuto (0 si no llegó ninguno)
+          ReturnData: true
       EvaluationPeriods: 3
       DatapointsToAlarm: 3
       Threshold: 1

@@ -18,7 +18,7 @@ sin experimento dedicado), **Parcial** y **Argumentado** (se apoya en el diseño
 | Testeabilidad | Probar la lógica sin acceso a AWS ni a un servidor OPC UA | 72 pruebas unitarias sin red (`tests/`), listas para el flujo de CI definido (el repositorio aún no tiene remoto, así que no se ha ejecutado allí). No se midió cobertura | Observado |
 | Reutilización | Usar el gateway en otro sitio | Se configura por variables de entorno (`SITE_ID`, endpoints, certificados). Un solo sitio probado | Argumentado |
 | Interoperabilidad | Integrar otro servidor OPC UA o consumidor | Origen estándar (IEC 62541) y destino MQTT con JSON. Solo se probó con el servidor simulado | Parcial |
-| Soportabilidad | Diagnosticar un fallo en producción | Latido del gateway cada 15 s, logs y métricas EMF, siete alarmas y un panel de CloudWatch, README. Las alarmas y el panel aún no se han probado desplegados | Argumentado |
+| Soportabilidad | Diagnosticar un fallo en producción | Latido del gateway cada 15 s, logs y métricas EMF, siete alarmas y un panel de CloudWatch, README. Latido y alarma de ausencia verificados en AWS (salta a los ~3 min); aviso por correo y corte real sobre el panel sin verificar | Argumentado |
 
 ## Cómo se midió
 

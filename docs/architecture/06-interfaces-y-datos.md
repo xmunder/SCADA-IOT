@@ -77,7 +77,7 @@ gateway, para que un reloj desfasado no oculte un latido.
 | Latencia p95 | Supera `LatencyP95ThresholdMs` (5,000 ms) tres minutos seguidos |
 | Cola del gateway | Supera `PendingBatchesThreshold` (200 lotes) |
 | Sesión OPC UA perdida | `GatewayOpcConnected` baja de 1 dos minutos seguidos |
-| Ausencia de latido | No llega ningún latido en tres minutos; los datos que faltan cuentan como incumplimiento |
+| Ausencia de latido | No llega ningún latido en tres minutos (cada minuto sin latido se evalúa como 0): salta ~3 min después de detener el gateway |
 
 ## Política de IoT Core
 

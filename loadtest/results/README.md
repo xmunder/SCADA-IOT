@@ -12,6 +12,7 @@ Evidencia de las pruebas, obtenida en una única cuenta de AWS (us-east-2). Cada
 | `cold-table-long/` | Lo mismo con 8 fases de 150 s (20 min) | La capacidad pasa de ~4,000 a ~4,500 y a 5,000 escrituras/s en unos 7 minutos de presión sostenida. Rechazo por fase: 17.9, 9.5, 4.9 y 0 % desde la fase 4. |
 | `flush-sweep/` | Barrido del intervalo de vaciado del gateway real (0.1, 0.25, 0.5, 1 y 2 s), 200 tags, 3 min por valor | Una sola corrida por valor: las diferencias de mediana menores a ~100 ms no son significativas. Ver el ADR 0002. |
 | `gateway-1000/` | Gateway real con 1,000 tags, 4 min | Latencia p95 menor que con 200 tags porque los lotes se llenan por tamaño. |
+| `observabilidad-fase1/` | Gateway real y simulador contra AWS, latido, métricas y alarmas | `latido-y-alarmas.txt`: primera prueba (la alarma de errores salta por un mensaje inválido de `check_policy`, ya corregido; la de ausencia de latido tardó ~8.5 min con datos faltantes). `alarma-de-latido.txt`: tras evaluar con `FILL(m1, 0)`, salta 183 s después de detener el gateway. Una sola corrida de cada una. |
 
 ## Corridas excluidas del repositorio (en `.gitignore`)
 

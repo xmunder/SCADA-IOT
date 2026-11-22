@@ -33,7 +33,7 @@ en lotes y escribe todas sus lecturas en una sola operación. Parámetros de la 
 |---|---|---|
 | `IngestBatchSize` | 10 mensajes | Hasta 1,000 lecturas por invocación (cada mensaje trae hasta 100) |
 | `IngestBatchWindowSeconds` | 1 | Cuánto espera la Lambda para juntar el lote |
-| `IngestMaxConcurrency` | 10 | Copias de la Lambda leyendo a la vez: es el tope de la velocidad de escritura a DynamoDB |
+| `IngestMaxConcurrency` | 20 | Copias de la Lambda leyendo a la vez: es el tope de la velocidad de escritura a DynamoDB |
 | `QueueAgeThresholdSeconds` | 300 | Edad del mensaje más antiguo que dispara la alarma |
 
 Si la escritura falla, solo vuelven a la cola los mensajes que tenían lecturas válidas (respuesta de fallos parciales). Tras cinco

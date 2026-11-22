@@ -28,6 +28,9 @@ loadtest/results/*
 !loadtest/results/flush-sweep/
 !loadtest/results/gateway-1000/
 !loadtest/results/observabilidad-fase1/
+!loadtest/results/cola-directo/
+!loadtest/results/cola-sqs/
+!loadtest/results/cola-sqs-c20/
 !loadtest/results/corte-observabilidad/
 !loadtest/results/corte-5min-us-east-2-r2/
 !loadtest/results/corte-5min-us-east-2-r3/

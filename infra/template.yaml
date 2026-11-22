@@ -57,10 +57,11 @@ Parameters:
     MinValue: 0
     MaxValue: 300
 
-  # Copias de la Lambda leyendo la cola a la vez. Es el tope de la velocidad de escritura a DynamoDB.
+  # Copias de la Lambda leyendo la cola a la vez. Es el tope de la velocidad de escritura a DynamoDB: con 5 la cola creció
+  # más de lo que se vaciaba y la latencia empeoró; con 20 mejoró frente al modo direct (ver el ADR 0007).
   IngestMaxConcurrency:
     Type: Number
-    Default: 10
+    Default: 20
     MinValue: 2
     MaxValue: 1000
 

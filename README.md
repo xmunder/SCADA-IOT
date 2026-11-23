@@ -9,7 +9,7 @@ pruebas de carga reproducibles.
 - [Arquitectura](docs/architecture.md): resumen y vistas de contexto, despliegue, ISA-95/IEC 62443, escenarios de
   calidad, riesgos e interfaces en [docs/architecture/](docs/architecture/).
 - [Decisiones de arquitectura (ADR)](docs/adr/): almacenamiento y reenvío, lotes, Lambda y DynamoDB, método de
-  medición y región de despliegue.
+  medición, región de despliegue, observabilidad con latido del gateway y cola SQS de ingesta.
 - [Resultados de las pruebas](loadtest/results/README.md): qué contiene cada corrida y qué validez tiene.
 
 ## Componentes
@@ -20,7 +20,7 @@ pruebas de carga reproducibles.
 | `gateway/` | Lector OPC UA por suscripción, lotes, buffer SQLite y publicador MQTT con TLS. |
 | `infra/` | Aprovisionamiento de dispositivo (boto3), Lambda de ingesta y plantilla SAM. |
 | `loadtest/` | Generador de carga MQTT, medición de PUBACK y verificación de pérdida en DynamoDB. |
-| `tests/` | Pruebas unitarias (buffer, payload, configuración, ingesta, estadísticas). |
+| `tests/` | Pruebas unitarias, de contrato entre productor y consumidor, y una de integración local (buffer, payload, configuración, ingesta, cola, latido, estadísticas). |
 
 ## Requisitos
 
@@ -168,8 +168,9 @@ Notas de uso:
   `ReadingsWritten`, `ReadingsRejected` e `IngestLatencyMs`, con percentiles nativos. La de estado convierte el latido
   del gateway en `GatewayHeartbeat`, `GatewayPendingBatches`, `GatewayOpcConnected`, `GatewayMqttConnected` y
   `GatewayReadingsDropped`.
-- La plantilla crea siete alarmas y un panel de CloudWatch (`<pila>-<sitio>`): errores y limitaciones de la Lambda,
-  lecturas rechazadas, latencia p95, cola del gateway, sesión OPC UA perdida y ausencia de latido (gateway caído). Para
+- La plantilla crea nueve alarmas y un panel de CloudWatch (`<pila>-<sitio>`): errores y limitaciones de la Lambda,
+  lecturas rechazadas, latencia p95, cola del gateway, sesión OPC UA perdida, ausencia de latido (gateway caído), edad
+  de la cola de ingesta y mensajes en la cola de fallidos. Para
   recibir los avisos por correo despliegue con `-AlarmEmail <correo>` y confirme la suscripción SNS. Un gateway ya
   aprovisionado necesita la política nueva: `uv run python infra/provision_device.py --site PLANTA-01 --policy-only`.
 - `run_matrix` espera (hasta `--max-wait`) a que termine la ingesta antes de contar la pérdida:

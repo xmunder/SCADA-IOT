@@ -35,7 +35,7 @@ ampliaría su superficie de seguridad.
   la alarma de ausencia de latido (pasa a OK con el gateway y a ALARM sin él) y `check_policy` con el tema de estado. En un
   corte real de 5 minutos (`corte-observabilidad`, 501 lotes en cola) la alarma de ausencia de latido saltó a los ~3.5 min
   del corte y volvió a OK 2 min después de reconectar; la alarma de cola grande saltó **después** de reconectar y duró un
-  minuto. **Sin verificar**: el aviso por correo.
+  minuto. El aviso por correo se verificó con un corte real de unos 5 min 45 s (22 de noviembre de 2026): SNS entregó a la bandeja el correo de ausencia de latido a los 3 min 50 s del corte y, ya reconectado, el de cola grande (465 lotes). Antes se había comprobado forzando una alarma con `set-alarm-state`.
 - (−) **El latido viaja por el mismo enlace que se corta**, así que durante el corte no llega: el panel muestra un hueco, no
   una cola que crece. El tamaño de la cola (469 lotes en el primer latido tras reconectar) solo se ve al volver el enlace.
   Durante el corte la señal útil es la ausencia de latido. Ver la cola crecer en vivo exigiría un canal independiente

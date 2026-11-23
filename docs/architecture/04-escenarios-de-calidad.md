@@ -13,12 +13,12 @@ sin experimento dedicado), **Parcial** y **Argumentado** (se apoya en el diseño
 | Fiabilidad | Corte de enlace de 5 min: ninguna lectura perdida y recuperación en menos de 30 s | Tres cortes: ~490 lotes acumulados; recuperación de 7.1 a 17.3 s (media 13.5 s); 0 faltantes en 134 tags en cada uno. `corte-5min-us-east-2/`, `-r2/`, `-r3/` | Medido |
 | Seguridad | Un dispositivo intenta publicar en el tema de otro sitio: la nube lo rechaza | Rechazado, igual que conectar con un cliente ajeno. `infra/check_policy.py` | Medido |
 | Disponibilidad | Cae el proceso del gateway: el servicio se restablece automáticamente | **Parcial**: si cae el servidor OPC UA, el gateway reconecta solo (probado con el simulador); si cae el proceso del gateway no hay redundancia ni reinicio automático | Argumentado |
-| Mantenibilidad | Cambiar un módulo sin tocar los demás | Módulos separados (`gateway/`, `infra/`, `loadtest/`), ADR y 72 pruebas. No se midió complejidad ni cobertura | Argumentado |
+| Mantenibilidad | Cambiar un módulo sin tocar los demás | Módulos separados (`gateway/`, `infra/`, `loadtest/`), ADR y 125 pruebas. No se midió complejidad ni cobertura | Argumentado |
 | Modificabilidad | Sustituir el almacenamiento sin tocar el gateway | Timestream a DynamoDB afectó a la Lambda, la plantilla, los scripts de verificación y la documentación; el gateway no cambió | Observado |
-| Testeabilidad | Probar la lógica sin acceso a AWS ni a un servidor OPC UA | 72 pruebas unitarias sin red (`tests/`), listas para el flujo de CI definido (el repositorio aún no tiene remoto, así que no se ha ejecutado allí). No se midió cobertura | Observado |
+| Testeabilidad | Probar la lógica sin acceso a AWS ni a un servidor OPC UA | 114 pruebas unitarias sin red, 10 de contrato y 1 de integración local (`tests/`). El flujo de CI se ejecutó en GitHub sobre `main` (con menos pruebas); las 125 actuales solo se han corrido en local. No se midió cobertura | Observado |
 | Reutilización | Usar el gateway en otro sitio | Se configura por variables de entorno (`SITE_ID`, endpoints, certificados). Un solo sitio probado | Argumentado |
 | Interoperabilidad | Integrar otro servidor OPC UA o consumidor | Origen estándar (IEC 62541) y destino MQTT con JSON. Solo se probó con el servidor simulado | Parcial |
-| Soportabilidad | Diagnosticar un fallo en producción | Latido del gateway cada 15 s, logs y métricas EMF, siete alarmas y un panel de CloudWatch, README. Latido y alarmas verificados en AWS, incluido un corte real de 5 min: la ausencia de latido salta a los ~3.5 min y la cola solo se ve al reconectar; aviso por correo sin verificar | Argumentado |
+| Soportabilidad | Diagnosticar un fallo en producción | Latido del gateway cada 15 s, logs y métricas EMF, nueve alarmas y un panel de CloudWatch, README. Latido y alarmas verificados en AWS, incluido un corte real de 5 min: la ausencia de latido salta a los ~3.5 min y la cola solo se ve al reconectar; aviso por correo verificado en un corte real (latido ausente a los 3 min 50 s; cola grande al reconectar) | Observado |
 
 ## Cómo se midió
 

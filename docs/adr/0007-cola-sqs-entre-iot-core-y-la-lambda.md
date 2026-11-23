@@ -75,7 +75,7 @@ Cinco corridas más de 5 minutos a 5,000 tags (`cola-directo-r2/`, `cola-sqs-c20
 - **Mensajes a la cola de fallidos:** con la tabla rota, los 4 mensajes llegaron a la cola de fallidos entre 5 y 8 minutos
   (visibilidad de 30 s; con los 180 s de producción tardaría varias veces más). Al restaurar la tabla y reprocesar desde la cola de
   fallidos (`start-message-move-task`), se movieron los 4 mensajes y las 40 lecturas quedaron guardadas.
-- El correo de las alarmas (SNS) sigue sin probarse.
+- El correo de las alarmas (SNS) se verificó con un disparo manual y luego con un corte real del gateway: llegaron el aviso de latido ausente (3 min 50 s después del corte) y el de cola grande tras reconectar.
 
 ## Consecuencias
 

@@ -4,11 +4,20 @@
 # La cuenta usada en las pruebas solo permite us-east-2.
 # Para reutilizar un rol IAM existente (cuentas que no permiten crear roles) agregue: -ExecutionRoleName <rol>
 # Con un perfil del CLI distinto del predeterminado agregue: -Profile personal
+# Para recibir las alarmas por correo agregue: -AlarmEmail <correo> (SNS enviará un mensaje que hay que confirmar).
+# El sitio de las alarmas y del panel es el nombre del Thing del gateway (-SiteId, PLANTA-01 por defecto).
+# Modo de ingesta: -IngestMode direct (la regla invoca la Lambda) o queue (la regla escribe en SQS y la Lambda lee en lotes).
+# Tabla distinta (por ejemplo una nueva para una prueba): -TableName <nombre>. Cualquier otro parámetro: -Parameter "Clave=valor".
 param(
     [string]$Region = "us-east-2",
     [string]$StackName = "scada-iot-ingest",
     [string]$ExecutionRoleName = "",
-    [string]$Profile = ""
+    [string]$Profile = "",
+    [string]$SiteId = "PLANTA-01",
+    [string]$AlarmEmail = "",
+    [ValidateSet("direct", "queue")][string]$IngestMode = "direct",
+    [string]$TableName = "",
+    [string[]]$Parameter = @()
 )
 $ErrorActionPreference = "Stop"
 
@@ -31,9 +40,15 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "sam build falló" }
 
     Write-Host "3/3 Desplegando la pila '$StackName'..." -ForegroundColor Cyan
+    # sam deploy rechaza un parámetro con valor vacío ("Nombre="): solo se pasan los que tienen valor y el resto
+    # toma el valor por defecto de la plantilla.
+    $overrides = @("SiteId=$SiteId", "IngestMode=$IngestMode") + $Parameter
+    if ($TableName) { $overrides += "TableName=$TableName" }
+    if ($ExecutionRoleName) { $overrides += "ExecutionRoleName=$ExecutionRoleName" }
+    if ($AlarmEmail) { $overrides += "AlarmEmail=$AlarmEmail" }
     sam deploy --stack-name $StackName --region $Region `
         --resolve-s3 --capabilities CAPABILITY_IAM `
-        --parameter-overrides "ExecutionRoleName=$ExecutionRoleName" `
+        --parameter-overrides $overrides `
         --no-confirm-changeset --no-fail-on-empty-changeset
     if ($LASTEXITCODE -ne 0) { throw "sam deploy falló" }
 }

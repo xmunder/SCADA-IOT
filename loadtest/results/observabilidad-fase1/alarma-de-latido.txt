@@ -1,0 +1,8 @@
+estado inicial: ALARM a las 18:42:57Z
+18:43:05Z (+4 s con gateway) estado=ALARM
+18:44:17Z (+76 s con gateway) estado=OK
+18:47:15Z gateway detenido (último latido hace <=15 s)
+18:48:12Z (+57 s sin gateway) estado=OK
+18:49:24Z (+129 s sin gateway) estado=OK
+18:50:18Z ALARM tras 183 s sin gateway
+== fin

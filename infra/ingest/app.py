@@ -47,7 +47,13 @@ def build_items(event: dict[str, Any], received_ms: int) -> tuple[list[dict[str,
     site = str(event["site"])
     items: list[dict[str, Any]] = []
     rejected = 0
-    for reading in event.get("readings", []):
+    readings = event.get("readings", [])
+    if not isinstance(readings, list):
+        return items, 1
+    for reading in readings:
+        if not isinstance(reading, dict):
+            rejected += 1
+            continue
         try:
             if reading.get("quality") != "GOOD":
                 rejected += 1
@@ -104,8 +110,62 @@ def build_emf(site: str, written: int, rejected: int, latencies_ms: list[int], t
     return record
 
 
-def handler(event: dict[str, Any], context: Any) -> dict[str, int]:
+def _handle_sqs(event: dict[str, Any], received_ms: int) -> dict[str, list[dict[str, str]]]:
+    """Procesa un lote de mensajes de SQS (cada uno es un mensaje del gateway) con una sola escritura a la tabla.
+
+    Devuelve fallos parciales: si la escritura falla, solo se reintentan los mensajes que tenían lecturas válidas, y
+    como la clave (serie, tiempo) es idempotente, reescribirlas no duplica nada. Un cuerpo inválido no se reintenta
+    (seguiría igual de inválido): se cuenta como rechazado. Lo escrito solo se informa cuando la escritura salió bien,
+    para no contarlo dos veces en el reintento.
+    """
+    parsed: list[tuple[str, str, list[dict[str, Any]], int]] = []  # (id del mensaje, sitio, items, rechazadas)
+    for record in event["Records"]:
+        message_id = str(record.get("messageId", ""))
+        try:
+            body = json.loads(record["body"])
+        except (KeyError, TypeError, ValueError):
+            body = None
+        if not isinstance(body, dict) or not body.get("site"):
+            parsed.append((message_id, "unknown", [], 1))
+            continue
+        items, rejected = build_items(body, received_ms)
+        parsed.append((message_id, str(body["site"]), items, rejected))
+
+    all_items = [item for _, _, items, _ in parsed for item in items]
+    write_ok = True
+    if all_items:
+        try:
+            write_items(_dynamodb_table(), all_items)
+        except Exception:  # cualquier fallo de escritura (límites de DynamoDB, red) se reintenta desde la cola
+            logger.exception("fallo al escribir %d items; el lote vuelve a la cola", len(all_items))
+            write_ok = False
+
+    per_site: dict[str, dict[str, Any]] = {}
+    failures: list[dict[str, str]] = []
+    for message_id, site, items, rejected in parsed:
+        if items and not write_ok:
+            failures.append({"itemIdentifier": message_id})
+            continue
+        totals = per_site.setdefault(site, {"written": 0, "rejected": 0, "latencies": []})
+        totals["written"] += len(items)
+        totals["rejected"] += rejected
+        totals["latencies"].extend(max(0, item["ingest_latency_ms"]) for item in items)
+    for site, totals in per_site.items():
+        print(json.dumps(build_emf(site, totals["written"], totals["rejected"], totals["latencies"], received_ms)))
+    logger.info("sqs records=%d failed=%d", len(parsed), len(failures))
+    return {"batchItemFailures": failures}
+
+
+def handler(event: dict[str, Any], context: Any) -> Any:
     received_ms = int(time.time() * 1000)
+    if isinstance(event, dict) and "Records" in event:
+        return _handle_sqs(event, received_ms)
+    if not isinstance(event, dict) or not event.get("site"):
+        # Un mensaje sin sitio no se puede atribuir ni reintentar con éxito: se cuenta como rechazado y no falla la
+        # invocación (IoT Core reintentaría dos veces un mensaje que seguiría igual de inválido).
+        logger.warning("mensaje sin sitio descartado")
+        print(json.dumps(build_emf("unknown", 0, 1, [], received_ms)))
+        return {"written": 0, "rejected": 1}
     items, rejected = build_items(event, received_ms)
     if items:
         write_items(_dynamodb_table(), items)

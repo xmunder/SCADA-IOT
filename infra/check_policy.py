@@ -1,8 +1,8 @@
 """Verifica experimentalmente la política de mínimo privilegio de un gateway en AWS IoT Core.
 
 Con el certificado del dispositivo comprueba que:
-  1. puede conectarse con su propio nombre de Thing y publicar en su tema (esperado: permitido);
-  2. no puede publicar en el tema de otro sitio (esperado: rechazado por IoT Core);
+  1. puede conectarse con su propio nombre de Thing y publicar en sus temas de telemetría y de estado (permitido);
+  2. no puede publicar en los temas de otro sitio (esperado: rechazado por IoT Core);
   3. no puede conectarse con un identificador de cliente ajeno (esperado: rechazado).
 
 Uso (con las variables de entorno del gateway: IOT_ENDPOINT, CERT_FILE, KEY_FILE, CA_FILE):
@@ -24,13 +24,25 @@ import paho.mqtt.client as mqtt
 from gateway.config import GatewayConfig
 
 
-def evaluate(own_published: bool, other_published: bool, foreign_client_connected: bool) -> dict[str, bool]:
+def evaluate(
+    own_published: bool,
+    other_published: bool,
+    foreign_client_connected: bool,
+    own_status_published: bool = True,
+    other_status_published: bool = False,
+) -> dict[str, bool]:
     """Un resultado es correcto si lo permitido funciona y lo prohibido falla."""
     return {
         "publish_own_topic_allowed": own_published,
         "publish_other_topic_denied": not other_published,
+        "publish_own_status_allowed": own_status_published,
+        "publish_other_status_denied": not other_status_published,
         "connect_foreign_client_id_denied": not foreign_client_connected,
-        "policy_enforced": own_published and not other_published and not foreign_client_connected,
+        "policy_enforced": own_published
+        and not other_published
+        and own_status_published
+        and not other_status_published
+        and not foreign_client_connected,
     }
 
 
@@ -52,6 +64,25 @@ def _try_publish(client: mqtt.Client, topic: str, timeout_s: float = 6.0) -> boo
     return bool(info.is_published())
 
 
+def _publish_on_fresh_connection(cfg: GatewayConfig, client_id: str, topic: str) -> bool:
+    """Publica en `topic` con una conexión nueva y propia.
+
+    IoT Core cierra la conexión cuando rechaza una publicación; por eso cada prueba de rechazo usa la suya y
+    un resultado "no publicado" siempre viene de una conexión que sí se pudo establecer.
+    """
+    client, connected = _client(cfg, client_id)
+    client.connect(cfg.iot_endpoint, cfg.iot_port, keepalive=30)
+    client.loop_start()
+    try:
+        if not connected.wait(10):
+            raise SystemExit("No se pudo conectar con el identificador propio; revise el endpoint y los certificados")
+        return _try_publish(client, topic)
+    finally:
+        client.loop_stop()
+        client.disconnect()
+        time.sleep(2)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Comprueba la política de IoT Core de un gateway")
     parser.add_argument("--site", required=True)
@@ -59,17 +90,10 @@ def main() -> None:
     args = parser.parse_args()
     cfg = GatewayConfig.from_env()
 
-    own, connected = _client(cfg, args.site)
-    own.connect(cfg.iot_endpoint, cfg.iot_port, keepalive=30)
-    own.loop_start()
-    if not connected.wait(10):
-        raise SystemExit("No se pudo conectar con el identificador propio; revise el endpoint y los certificados")
-    own_published = _try_publish(own, f"plant/{args.site}/telemetry")
-    time.sleep(1)
-    other_published = _try_publish(own, f"plant/{args.other_site}/telemetry") if own.is_connected() else False
-    own.loop_stop()
-    own.disconnect()
-    time.sleep(2)
+    own_published = _publish_on_fresh_connection(cfg, args.site, f"plant/{args.site}/telemetry")
+    own_status_published = _publish_on_fresh_connection(cfg, args.site, f"plant/{args.site}/status")
+    other_published = _publish_on_fresh_connection(cfg, args.site, f"plant/{args.other_site}/telemetry")
+    other_status_published = _publish_on_fresh_connection(cfg, args.site, f"plant/{args.other_site}/status")
 
     foreign, foreign_connected = _client(cfg, f"{args.site}-intruso")
     try:
@@ -82,7 +106,12 @@ def main() -> None:
         foreign.loop_stop()
         foreign.disconnect()
 
-    print(json.dumps(evaluate(own_published, other_published, foreign_ok), indent=2))
+    print(
+        json.dumps(
+            evaluate(own_published, other_published, foreign_ok, own_status_published, other_status_published),
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

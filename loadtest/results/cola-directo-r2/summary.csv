@@ -1,0 +1,2 @@
+level_tags,repetitions,loss_pct_mean,loss_pct_std,achieved_rate_readings_s_mean,achieved_rate_readings_s_std,puback_p95_ms_mean,puback_p95_ms_std,ingest_p50_ms_mean,ingest_p50_ms_std,ingest_p95_ms_mean,ingest_p95_ms_std,ingest_p99_ms_mean,ingest_p99_ms_std,est_write_cost_usd_total
+5000,1,0.0,0.0,4979.38,0.0,115.88,0.0,22300.161,0.0,199938.161,0.0,458711.161,0.0,0.9371

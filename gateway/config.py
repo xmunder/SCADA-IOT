@@ -34,6 +34,7 @@ class GatewayConfig:
     flush_interval_s: float
     inflight_window: int
     opc_reconnect_max_s: float = 30.0
+    status_interval_s: float = 15.0
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> GatewayConfig:
@@ -46,6 +47,9 @@ class GatewayConfig:
         opc_reconnect_max_s = float(env.get("OPC_RECONNECT_MAX_S", "30"))
         if opc_reconnect_max_s <= 0:
             raise ConfigError("OPC_RECONNECT_MAX_S debe ser mayor que cero")
+        status_interval_s = float(env.get("GATEWAY_STATUS_INTERVAL_S", "15"))
+        if status_interval_s <= 0:
+            raise ConfigError("GATEWAY_STATUS_INTERVAL_S debe ser mayor que cero")
         if batch_size <= 0:
             raise ConfigError("GATEWAY_BATCH_SIZE debe ser mayor que cero")
         if flush_interval_s <= 0:
@@ -68,4 +72,5 @@ class GatewayConfig:
             flush_interval_s=flush_interval_s,
             inflight_window=inflight_window,
             opc_reconnect_max_s=opc_reconnect_max_s,
+            status_interval_s=status_interval_s,
         )

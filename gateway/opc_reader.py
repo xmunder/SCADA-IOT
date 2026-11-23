@@ -101,6 +101,7 @@ class OpcReader:
         self._sink = sink
         self._interval_ms = publishing_interval_ms
         self._backoff = Backoff(initial_s=1.0, max_s=cfg.opc_reconnect_max_s)
+        self.connected = False  # True mientras hay una sesión suscrita; lo publica el latido
 
     async def _discover_variables(self, client: Client) -> dict[Any, str]:
         """Devuelve un mapa nodo -> nombre (BrowseName) de cada variable del objeto raíz."""
@@ -116,6 +117,12 @@ class OpcReader:
         raise RuntimeError(f"No se encontró el objeto '{self._cfg.opc_root_name}' en el espacio de nombres indicado")
 
     async def _session(self) -> None:
+        try:
+            await self._run_session()
+        finally:
+            self.connected = False
+
+    async def _run_session(self) -> None:
         """Mantiene una sesión abierta hasta que se cancele la tarea o falle la conexión."""
         async with Client(url=self._cfg.opc_endpoint) as client:
             variables = await self._discover_variables(client)
@@ -123,6 +130,7 @@ class OpcReader:
             subscription = await client.create_subscription(self._interval_ms, _DataChangeHandler(self._sink, names))
             await subscription.subscribe_data_change(list(variables))
             self._backoff.reset()
+            self.connected = True
             logger.info("Suscritos a %d tags en %s", len(variables), self._cfg.opc_endpoint)
             # Si el servidor cae, las suscripciones dejan de notificar sin lanzar error: una lectura
             # periódica del estado del servidor (nodo estándar de OPC UA) detecta la caída.

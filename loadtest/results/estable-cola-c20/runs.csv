@@ -1,0 +1,2 @@
+level_tags,repetition,readings_sent,readings_stored,lost_readings,loss_pct,achieved_rate_readings_s,msgs_unacked,puback_p95_ms,ingest_wait_s,clock_offset_ms,clock_drift_ms,clock_uncertainty_ms,raw_latency_min_ms,ingest_p50_ms,ingest_p95_ms,ingest_p99_ms,ingest_max_ms,est_write_cost_usd
+5000,1,1499200,1499200,0,0.0,4979.18,0,112.45460000282037,44.8,-96.2,4.9,41.2,2.0,623.1787104606628,4933.178710460663,9613.178710460663,181285.17871046066,0.937

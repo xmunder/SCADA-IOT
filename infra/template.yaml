@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Ingesta de telemetría SCADA desde AWS IoT Core hacia Amazon DynamoDB
+Description: Ingesta de telemetría SCADA desde AWS IoT Core hacia Amazon DynamoDB, con observabilidad
 
 Parameters:
   TableName:
@@ -13,8 +13,68 @@ Parameters:
     Type: String
     Default: ""
 
+  # Sitio al que se refieren las alarmas y el panel (el nombre del Thing del gateway).
+  SiteId:
+    Type: String
+    Default: PLANTA-01
+
+  # Vacío (por defecto): las alarmas cambian de estado pero no avisan. Con un correo se crea una suscripción SNS
+  # que hay que confirmar desde ese correo. No guarde el correo en el repositorio: páselo al desplegar.
+  AlarmEmail:
+    Type: String
+    Default: ""
+
+  # Latencia p95 de ingesta (ms) por encima de la cual salta la alarma. Con la tabla ajustada ronda los 200 ms
+  # y con el gateway real, 1,700 ms.
+  LatencyP95ThresholdMs:
+    Type: Number
+    Default: 5000
+
+  # Lotes esperando en la cola del gateway por encima de los cuales salta la alarma. Un corte de 5 minutos
+  # acumula unos 490.
+  PendingBatchesThreshold:
+    Type: Number
+    Default: 200
+
+  # direct: la regla de IoT invoca la Lambda (como antes). queue: la regla deja el mensaje en una cola SQS y la Lambda lo
+  # lee en lotes. La cola absorbe los picos (por ejemplo una tabla nueva de DynamoDB que aún no escala) y no pierde
+  # mensajes si la Lambda falla. Cambiar de modo no pierde datos ya escritos.
+  IngestMode:
+    Type: String
+    Default: direct
+    AllowedValues: [direct, queue]
+
+  # Solo en modo queue. Cada mensaje trae hasta 100 lecturas, así que un lote de 10 son hasta 1,000 items.
+  IngestBatchSize:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 1000
+
+  IngestBatchWindowSeconds:
+    Type: Number
+    Default: 1
+    MinValue: 0
+    MaxValue: 300
+
+  # Copias de la Lambda leyendo la cola a la vez. Es el tope de la velocidad de escritura a DynamoDB: con 5 la cola creció
+  # más de lo que se vaciaba y la latencia empeoró; con 20 mejoró frente al modo direct (ver el ADR 0007).
+  IngestMaxConcurrency:
+    Type: Number
+    Default: 20
+    MinValue: 2
+    MaxValue: 1000
+
+  # Edad (s) del mensaje más antiguo de la cola por encima de la cual salta la alarma.
+  QueueAgeThresholdSeconds:
+    Type: Number
+    Default: 300
+
 Conditions:
+  UseDirect: !Equals [!Ref IngestMode, direct]
+  UseQueue: !Equals [!Ref IngestMode, queue]
   UseExistingRole: !Not [!Equals [!Ref ExecutionRoleName, ""]]
+  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
 
 Resources:
   TelemetryTable:
@@ -52,12 +112,350 @@ Resources:
       Policies:
         - DynamoDBWritePolicy:
             TableName: !Ref TelemetryTable
+        - SQSPollerPolicy:
+            QueueName: !GetAtt IngestQueue.QueueName
+
+  # Cola de ingesta y su cola de mensajes fallidos. Existen siempre; solo se usan en modo queue.
+  IngestDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+
+  IngestQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      # Seis veces el tiempo de espera de la Lambda, como recomienda AWS para evitar reentregas innecesarias.
+      VisibilityTimeout: 180
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt IngestDeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  # Modo direct: la regla invoca la Lambda.
+  DirectTelemetryRule:
+    Type: AWS::IoT::TopicRule
+    Condition: UseDirect
+    Properties:
+      TopicRulePayload:
+        Sql: "SELECT * FROM 'plant/+/telemetry'"
+        RuleDisabled: false
+        Actions:
+          - Lambda:
+              FunctionArn: !GetAtt IngestFunction.Arn
+
+  DirectTelemetryPermission:
+    Type: AWS::Lambda::Permission
+    Condition: UseDirect
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref IngestFunction
+      Principal: iot.amazonaws.com
+      SourceArn: !GetAtt DirectTelemetryRule.Arn
+
+  # Modo queue: la regla escribe en la cola y la Lambda la lee en lotes.
+  IotToQueueRole:
+    Type: AWS::IAM::Role
+    Condition: UseQueue
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: iot.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SendToIngestQueue
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt IngestQueue.Arn
+
+  QueueTelemetryRule:
+    Type: AWS::IoT::TopicRule
+    Condition: UseQueue
+    Properties:
+      TopicRulePayload:
+        Sql: "SELECT * FROM 'plant/+/telemetry'"
+        RuleDisabled: false
+        Actions:
+          - Sqs:
+              QueueUrl: !Ref IngestQueue
+              RoleArn: !GetAtt IotToQueueRole.Arn
+              UseBase64: false
+
+  IngestQueueMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: UseQueue
+    Properties:
+      EventSourceArn: !GetAtt IngestQueue.Arn
+      FunctionName: !Ref IngestFunction
+      BatchSize: !Ref IngestBatchSize
+      MaximumBatchingWindowInSeconds: !Ref IngestBatchWindowSeconds
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+      ScalingConfig:
+        MaximumConcurrency: !Ref IngestMaxConcurrency
+
+  # Convierte el latido del gateway en métricas. No tiene permisos sobre DynamoDB.
+  StatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: status/
+      Handler: status_app.handler
+      Runtime: python3.12
+      Timeout: 10
+      MemorySize: 128
+      Role: !If
+        - UseExistingRole
+        - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ExecutionRoleName}"
+        - !Ref AWS::NoValue
       Events:
-        Telemetry:
+        Status:
           Type: IoTRule
           Properties:
-            Sql: "SELECT * FROM 'plant/+/telemetry'"
+            Sql: "SELECT * FROM 'plant/+/status'"
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasAlarmEmail
+
+  AlarmSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlarmEmail
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: email
+      Endpoint: !Ref AlarmEmail
+
+  IngestErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: La Lambda de ingesta terminó con errores
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref IngestFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  IngestThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: La Lambda de ingesta fue limitada por concurrencia
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref IngestFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  QueueAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: El mensaje más antiguo de la cola de ingesta lleva demasiado tiempo esperando
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt IngestQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: !Ref QueueAgeThresholdSeconds
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  DeadLetterQueueAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Hay mensajes en la cola de fallidos (fallaron cinco veces); hay que revisarlos
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt IngestDeadLetterQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  ReadingsRejectedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Se rechazaron lecturas (calidad distinta de GOOD o mensaje mal formado)
+      Namespace: ScadaIot
+      MetricName: ReadingsRejected
+      Dimensions:
+        - Name: Site
+          Value: !Ref SiteId
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  LatencyP95Alarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: La latencia p95 de ingesta superó el umbral durante tres minutos seguidos
+      Namespace: ScadaIot
+      MetricName: IngestLatencyMs
+      Dimensions:
+        - Name: Site
+          Value: !Ref SiteId
+      ExtendedStatistic: p95
+      Period: 60
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 3
+      Threshold: !Ref LatencyP95ThresholdMs
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  GatewayBacklogAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: La cola local del gateway acumula lotes (enlace caído o ingesta lenta)
+      Namespace: ScadaIot
+      MetricName: GatewayPendingBatches
+      Dimensions:
+        - Name: Site
+          Value: !Ref SiteId
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: !Ref PendingBatchesThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  GatewayOpcDisconnectedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: El gateway perdió la sesión con el servidor OPC UA
+      Namespace: ScadaIot
+      MetricName: GatewayOpcConnected
+      Dimensions:
+        - Name: Site
+          Value: !Ref SiteId
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  # Sin latidos durante tres minutos: el gateway está caído o incomunicado. Con datos faltantes tratados como
+  # incumplimiento CloudWatch tardó unos 8.5 minutos en saltar (midió en una prueba real), porque amplía la ventana
+  # de evaluación en las métricas esporádicas. FILL(m1, 0) convierte cada minuto sin latido en un cero explícito
+  # y así la alarma se evalúa sobre los tres últimos minutos.
+  GatewayHeartbeatMissingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: El gateway dejó de enviar su latido
+      Metrics:
+        - Id: m1
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: ScadaIot
+              MetricName: GatewayHeartbeat
+              Dimensions:
+                - Name: Site
+                  Value: !Ref SiteId
+            Period: 60
+            Stat: Sum
+        - Id: e1
+          Expression: FILL(m1, 0)
+          Label: Latidos por minuto (0 si no llegó ninguno)
+          ReturnData: true
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 3
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${AWS::StackName}-${SiteId}"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {"type": "metric", "x": 0, "y": 0, "width": 12, "height": 6, "properties": {
+              "title": "Lecturas escritas y rechazadas por minuto", "region": "${AWS::Region}", "period": 60, "view": "timeSeries",
+              "metrics": [
+                ["ScadaIot", "ReadingsWritten", "Site", "${SiteId}", {"stat": "Sum"}],
+                ["ScadaIot", "ReadingsRejected", "Site", "${SiteId}", {"stat": "Sum"}]
+              ]}},
+            {"type": "metric", "x": 12, "y": 0, "width": 12, "height": 6, "properties": {
+              "title": "Latencia de ingesta (ms)", "region": "${AWS::Region}", "period": 60, "view": "timeSeries",
+              "metrics": [
+                ["ScadaIot", "IngestLatencyMs", "Site", "${SiteId}", {"stat": "p50"}],
+                ["ScadaIot", "IngestLatencyMs", "Site", "${SiteId}", {"stat": "p95"}],
+                ["ScadaIot", "IngestLatencyMs", "Site", "${SiteId}", {"stat": "p99"}]
+              ]}},
+            {"type": "metric", "x": 0, "y": 6, "width": 12, "height": 6, "properties": {
+              "title": "Cola local del gateway (lotes pendientes)", "region": "${AWS::Region}", "period": 60, "view": "timeSeries",
+              "metrics": [
+                ["ScadaIot", "GatewayPendingBatches", "Site", "${SiteId}", {"stat": "Maximum"}]
+              ]}},
+            {"type": "metric", "x": 12, "y": 6, "width": 12, "height": 6, "properties": {
+              "title": "Latido y conexiones del gateway", "region": "${AWS::Region}", "period": 60, "view": "timeSeries",
+              "metrics": [
+                ["ScadaIot", "GatewayHeartbeat", "Site", "${SiteId}", {"stat": "Sum"}],
+                ["ScadaIot", "GatewayOpcConnected", "Site", "${SiteId}", {"stat": "Minimum"}],
+                ["ScadaIot", "GatewayMqttConnected", "Site", "${SiteId}", {"stat": "Minimum"}]
+              ]}},
+            {"type": "metric", "x": 0, "y": 12, "width": 24, "height": 6, "properties": {
+              "title": "Lambda de ingesta: errores, limitaciones e invocaciones", "region": "${AWS::Region}", "period": 60, "view": "timeSeries",
+              "metrics": [
+                ["AWS/Lambda", "Errors", "FunctionName", "${IngestFunction}", {"stat": "Sum"}],
+                ["AWS/Lambda", "Throttles", "FunctionName", "${IngestFunction}", {"stat": "Sum"}],
+                ["AWS/Lambda", "Invocations", "FunctionName", "${IngestFunction}", {"stat": "Sum"}]
+              ]}},
+            {"type": "metric", "x": 0, "y": 18, "width": 12, "height": 6, "properties": {
+              "title": "Cola de ingesta: mensajes pendientes y fallidos", "region": "${AWS::Region}", "period": 60, "view": "timeSeries",
+              "metrics": [
+                ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "${IngestQueue.QueueName}", {"stat": "Maximum"}],
+                ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "${IngestDeadLetterQueue.QueueName}", {"stat": "Maximum"}]
+              ]}},
+            {"type": "metric", "x": 12, "y": 18, "width": 12, "height": 6, "properties": {
+              "title": "Cola de ingesta: edad del mensaje más antiguo (s)", "region": "${AWS::Region}", "period": 60, "view": "timeSeries",
+              "metrics": [
+                ["AWS/SQS", "ApproximateAgeOfOldestMessage", "QueueName", "${IngestQueue.QueueName}", {"stat": "Maximum"}]
+              ]}}
+          ]
+        }
 
 Outputs:
   TableName:
     Value: !Ref TelemetryTable
+  DashboardName:
+    Value: !Ref Dashboard
+  IngestMode:
+    Value: !Ref IngestMode
+  IngestQueueName:
+    Value: !GetAtt IngestQueue.QueueName

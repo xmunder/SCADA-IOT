@@ -1,0 +1,11 @@
+{
+  "run_name": "corte-observabilidad",
+  "outage_s": 300.25,
+  "baseline_pending_max": 3,
+  "backlog_max": 501,
+  "backlog_at_restore": 481,
+  "backlog_start_s": 4.07,
+  "recovery_s": 18.24,
+  "recovered": true,
+  "tolerance": 2
+}

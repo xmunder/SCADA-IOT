@@ -9,7 +9,7 @@ pruebas de carga reproducibles.
 - [Arquitectura](docs/architecture.md): resumen y vistas de contexto, despliegue, ISA-95/IEC 62443, escenarios de
   calidad, riesgos e interfaces en [docs/architecture/](docs/architecture/).
 - [Decisiones de arquitectura (ADR)](docs/adr/): almacenamiento y reenvío, lotes, Lambda y DynamoDB, método de
-  medición y región de despliegue.
+  medición, región de despliegue, observabilidad con latido del gateway y cola SQS de ingesta.
 - [Resultados de las pruebas](loadtest/results/README.md): qué contiene cada corrida y qué validez tiene.
 
 ## Componentes
@@ -20,7 +20,7 @@ pruebas de carga reproducibles.
 | `gateway/` | Lector OPC UA por suscripción, lotes, buffer SQLite y publicador MQTT con TLS. |
 | `infra/` | Aprovisionamiento de dispositivo (boto3), Lambda de ingesta y plantilla SAM. |
 | `loadtest/` | Generador de carga MQTT, medición de PUBACK y verificación de pérdida en DynamoDB. |
-| `tests/` | Pruebas unitarias (buffer, payload, configuración, ingesta, estadísticas). |
+| `tests/` | Pruebas unitarias, de contrato entre productor y consumidor, y una de integración local (buffer, payload, configuración, ingesta, cola, latido, estadísticas). |
 
 ## Requisitos
 
@@ -62,6 +62,11 @@ No hace falta activar el entorno manualmente.
    ```
 
    Anote el nombre de la tabla que muestra la salida (por defecto `scada_telemetry`).
+
+   Por defecto la regla de IoT invoca la Lambda (`-IngestMode direct`). Con `-IngestMode queue` la regla escribe en una cola
+   SQS y la Lambda la lee en lotes, con un tope de concurrencia y una cola de mensajes fallidos: absorbe los picos de carga y no
+   pierde mensajes si la Lambda o la tabla fallan. Se puede cambiar de modo sin perder lo ya escrito. Otros parámetros:
+   `-TableName <tabla>` (una tabla nueva sirve para probar el arranque en frío) y `-Parameter "IngestMaxConcurrency=5"`.
 
    La región por defecto es `us-east-2`: la cuenta personal usada en las pruebas bloquea las demás
    regiones con una política de organización. Si usa otra región,
@@ -117,6 +122,7 @@ Todos los comandos usan las variables de `.env` (`uv run --env-file .env ...`).
 | Matriz de escalabilidad (niveles x repeticiones) | `python -m loadtest.run_matrix --levels 200,1000,5000 --duration 60 --repetitions 3 --table scada_telemetry --name matriz-1` | `runs.csv` por corrida y `summary.csv` con media y desviación estándar por nivel. |
 | Latencia y continuidad con el gateway real (incluye lotes en el borde) | `python -m loadtest.gateway_report --start-ms <ms> --end-ms <ms> --tags 200 --table scada_telemetry` | Percentiles de latencia y pérdida estimada por huecos en los tags analógicos. |
 | Límite de escritura de una tabla DynamoDB nueva (hipótesis de la tabla fría) | `python -m loadtest.ddb_cold_test --rate 5000 --phase-seconds 150 --phases 2` | Items servidos y rechazados por ventana en dos fases seguidas; crea una tabla temporal y la elimina. |
+| Métricas de la nube durante una prueba (errores y limitaciones de la Lambda, escrituras limitadas de DynamoDB, edad y profundidad de la cola) | `python -m loadtest.collect_cloud_metrics --stack scada-iot-ingest --table scada_telemetry --start-ms <inicio> --end-ms <fin> --out loadtest/results/<prueba>/cloud_metrics.json` | La serie por minuto y un resumen; sirve para comparar el modo `direct` con el modo `queue`. Con `--no-queue` omite las métricas de cola. |
 | Política de mínimo privilegio de IoT Core | `python -m infra.check_policy --site PLANTA-01` | Comprueba que se publica en el tema propio y se rechazan el tema y el cliente ajenos. |
 | Compromiso latencia/mensajes del gateway real (intervalo de vaciado) | `python -m loadtest.flush_sweep --intervals 0.1,0.25,0.5,1.0,2.0 --tags 200 --table scada_telemetry --name flush-sweep` | Para cada intervalo: latencia p50/p95/p99, mensajes por segundo y continuidad. Levanta el simulador y el gateway solo. |
 | Recuperación tras un corte de enlace | `python -m loadtest.outage_test --duration 300` (PowerShell como administrador) | Acumulación máxima, tiempo de detección y de recuperación, y la serie temporal del buffer. |
@@ -158,8 +164,15 @@ Notas de uso:
   cuándo el cliente MQTT declara la desconexión. `recovery_s` incluye la espera de reconexión
   del cliente (retroceso exponencial de hasta 30 s) y el vaciado, y tolera `--tolerance` lotes
   (2 por defecto) sobre la línea base, que es el ruido normal de mensajes en vuelo.
-- La Lambda publica métricas en CloudWatch (espacio de nombres `ScadaIot`, dimensión `Site`):
-  `ReadingsWritten`, `ReadingsRejected` e `IngestLatencyMs`, con percentiles nativos.
+- Las métricas de CloudWatch (espacio `ScadaIot`, dimensión `Site`) vienen de dos Lambdas. La de ingesta emite
+  `ReadingsWritten`, `ReadingsRejected` e `IngestLatencyMs`, con percentiles nativos. La de estado convierte el latido
+  del gateway en `GatewayHeartbeat`, `GatewayPendingBatches`, `GatewayOpcConnected`, `GatewayMqttConnected` y
+  `GatewayReadingsDropped`.
+- La plantilla crea nueve alarmas y un panel de CloudWatch (`<pila>-<sitio>`): errores y limitaciones de la Lambda,
+  lecturas rechazadas, latencia p95, cola del gateway, sesión OPC UA perdida, ausencia de latido (gateway caído), edad
+  de la cola de ingesta y mensajes en la cola de fallidos. Para
+  recibir los avisos por correo despliegue con `-AlarmEmail <correo>` y confirme la suscripción SNS. Un gateway ya
+  aprovisionado necesita la política nueva: `uv run python infra/provision_device.py --site PLANTA-01 --policy-only`.
 - `run_matrix` espera (hasta `--max-wait`) a que termine la ingesta antes de contar la pérdida:
   con carga alta DynamoDB aplica límites de escritura y la Lambda reintenta, por lo que los
   items pueden llegar decenas de segundos tarde. Medir antes cuenta como pérdida lo que solo
@@ -203,9 +216,9 @@ El flujo de integración continua (`.github/workflows/ci.yml`) ejecuta estos cua
   usan las métricas `ScadaIot` de CloudWatch que emite la Lambda.
 - Por defecto SAM crea para la Lambda un rol limitado a escribir en la tabla. Si se indica
   `ExecutionRoleName` se reutiliza un rol existente, que puede ser más permisivo que el mínimo necesario.
-- El tamaño de la cola local del gateway se registra en su log y `outage_test` lo muestrea
-  del buffer SQLite; no se publica en CloudWatch porque el gateway solo tiene credenciales
-  de IoT Core.
+- El tamaño de la cola local del gateway llega a CloudWatch por el latido (`plant/<sitio>/status`), que viaja por IoT
+  Core: el gateway sigue sin tener credenciales de AWS más allá de IoT Core. El latido es de mejor esfuerzo y no
+  pasa por el buffer. `outage_test` sigue muestreando el buffer SQLite directamente.
 - `mqtt_load` exige `--readings-per-msg` menor o igual a `--tags`: un tag repetido en el
   mismo lote tendría la misma clave y se contaría como pérdida.
 - Si el servidor OPC UA deja de estar disponible, el gateway reintenta la conexión con retroceso exponencial

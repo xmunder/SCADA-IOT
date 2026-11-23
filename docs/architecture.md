@@ -42,7 +42,8 @@ flowchart LR
 3. El agrupador forma lotes de hasta `GATEWAY_BATCH_SIZE` lecturas o cada `GATEWAY_FLUSH_INTERVAL_S`.
 4. Cada lote se guarda en SQLite antes de intentar enviarlo.
 5. El reenviador publica una ventana de mensajes en vuelo con QoS 1 y borra del buffer solo los confirmados (PUBACK).
-6. La regla de IoT Core invoca la Lambda, que escribe un item por lectura buena en DynamoDB (valor y latencia de ingesta).
+6. La regla de IoT Core invoca la Lambda (modo `direct`) o deja el mensaje en una cola SQS de la que la Lambda lee en lotes (modo `queue`). La Lambda escribe un item por lectura buena en DynamoDB (valor y latencia de ingesta).
+7. Cada 15 s el gateway publica un latido en `plant/<sitio>/status`; una segunda Lambda lo convierte en métricas de CloudWatch, que alimentan nueve alarmas y un panel.
 
 ## Observabilidad y medición
 
@@ -51,9 +52,9 @@ flowchart LR
   métricas del espacio `ScadaIot` y calcula percentiles sin llamadas adicionales a su API.
 - La latencia de ingesta es `hora de la Lambda - ts_ms de origen`, por lo que exige relojes
   sincronizados (`loadtest.clock_check`).
-- El tamaño de la cola local es visible en el log del gateway y en el buffer SQLite.
+- El tamaño de la cola local es visible en el log del gateway, en el buffer SQLite y en el latido (`pending`).
 
 ## Decisiones
 
 Ver [docs/adr](adr): almacenamiento y reenvío, lotes en el borde, uso de Lambda como puente hacia DynamoDB, método de
-medición y región de despliegue.
+medición, región de despliegue, observabilidad con latido del gateway y cola SQS de ingesta.

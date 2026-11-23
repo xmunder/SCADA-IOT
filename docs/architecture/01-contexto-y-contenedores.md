@@ -39,13 +39,19 @@ flowchart TB
         IOT["AWS IoT Core<br/>broker MQTT + política por Thing"]
         RULE["Regla de IoT<br/>SELECT * FROM 'plant/+/telemetry'"]
         LMB["Lambda de ingesta<br/>Python 3.12, 256 MB, 30 s<br/>infra/ingest/app.py"]
+        SRULE["Regla de IoT<br/>SELECT * FROM 'plant/+/status'"]
+        STL["Lambda de estado<br/>infra/status/status_app.py"]
         DDB[("DynamoDB bajo demanda<br/>series + ts_ms")]
         CW["CloudWatch<br/>logs y métricas EMF ScadaIot"]
         IOT --> RULE --> LMB
+        RULE -. "modo queue" .-> SQS["Cola SQS de ingesta<br/>y cola de fallidos"]
+        SQS -. "lotes, tope de concurrencia" .-> LMB
+        IOT --> SRULE --> STL
+        STL -.-> CW
         LMB -- "BatchWriteItem" --> DDB
         LMB -.-> CW
     end
-    PB -- "MQTT/TLS, puerto 8883<br/>plant/SITE/telemetry" --> IOT
+    PB -- "MQTT/TLS, puerto 8883<br/>plant/SITE/telemetry y plant/SITE/status" --> IOT
     LT["Herramientas de prueba<br/>loadtest/ (generador, matriz,<br/>corte, informes)"]
     LT -. "publica carga sintética" .-> IOT
     LT -. "Query por serie" .-> DDB
@@ -57,7 +63,9 @@ flowchart TB
 | Gateway de borde | Leer, agrupar, persistir y publicar con confirmación | Python, asyncio, SQLite, paho-mqtt | `gateway/` |
 | AWS IoT Core | Autenticar al dispositivo y enrutar mensajes | Servicio gestionado | `infra/template.yaml` |
 | Lambda de ingesta | Validar lecturas, medir latencia y escribir idempotente | Python 3.12 | `infra/ingest/app.py` |
+| Lambda de estado | Convertir el latido del gateway en métricas (sin acceso a DynamoDB) | Python 3.12 | `infra/status/status_app.py` |
 | DynamoDB | Almacenar un item por lectura | Servicio gestionado | `infra/template.yaml` |
+| Alarmas y panel | Avisar de errores, latencia alta, cola grande y gateway caído | CloudWatch, SNS | `infra/template.yaml` |
 | Herramientas de prueba | Carga, medición, cortes y verificación | Python, boto3 | `loadtest/` |
 
 Las decisiones que dan forma a estos contenedores están en los [ADR](../adr/).

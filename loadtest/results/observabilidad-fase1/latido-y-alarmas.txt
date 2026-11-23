@@ -1,0 +1,28 @@
+== inicio 18:24:29Z
+== FASE A (gateway corriendo ~4 min) 18:28:28Z
+GatewayBacklogAlarm	OK
+GatewayHeartbeatMissingAlarm	OK
+GatewayOpcDisconnectedAlarm	OK
+IngestErrorsAlarm	ALARM
+IngestThrottlesAlarm	OK
+LatencyP95Alarm	OK
+ReadingsRejectedAlarm	OK
+GatewayHeartbeat: =1.0 =4.0 =4.0 =4.0
+GatewayPendingBatches: =0.0 =0.0 =1.0 =1.0
+GatewayOpcConnected: =1.0 =1.0 =1.0 =1.0
+GatewayMqttConnected: =1.0 =1.0 =1.0 =1.0
+ReadingsWritten: =334.0 =850.0 =850.0 =850.0
+1042.1277585112834 1711.3676752602748 1145.938573535698 1032.5352523894496 
+-- log del gateway (estado)
+290
+== esperando a que el gateway se detenga y a que salte la alarma de latido
+gateway detenido 18:30:24Z
+== FASE B (sin gateway, ~5 min sin latido) 18:35:14Z
+GatewayBacklogAlarm	OK
+GatewayHeartbeatMissingAlarm	OK
+GatewayOpcDisconnectedAlarm	OK
+IngestErrorsAlarm	OK
+IngestThrottlesAlarm	OK
+LatencyP95Alarm	OK
+ReadingsRejectedAlarm	OK
+== fin

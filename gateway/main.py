@@ -10,8 +10,9 @@ from dataclasses import dataclass
 from gateway.buffer import StoreAndForwardBuffer
 from gateway.config import GatewayConfig
 from gateway.opc_reader import OpcReader
-from gateway.payload import Reading, encode_batch, topic_for
+from gateway.payload import Reading, encode_batch, status_topic_for, topic_for
 from gateway.publisher import IotPublisher
+from gateway.status import build_status, encode_status
 
 logger = logging.getLogger("gateway")
 QUEUE_MAXSIZE = 100_000
@@ -86,6 +87,35 @@ async def forwarder(
             backoff_s = min(backoff_s * 2, 30.0)
 
 
+async def heartbeat(
+    cfg: GatewayConfig,
+    buffer: StoreAndForwardBuffer,
+    publisher: IotPublisher,
+    reader: OpcReader,
+    stats: Stats,
+) -> None:
+    """Publica el estado del gateway cada `status_interval_s`. Es de mejor esfuerzo: no se guarda en el buffer.
+
+    Un latido atrasado no sirve, así que si no hay conexión simplemente se omite; la ausencia de latidos es,
+    justamente, lo que dispara la alarma en la nube.
+    """
+    topic = status_topic_for(cfg.site_id)
+    while True:
+        await asyncio.sleep(cfg.status_interval_s)
+        try:
+            status = build_status(
+                cfg.site_id,
+                stats,
+                pending=buffer.pending(),
+                mqtt_connected=publisher.is_connected(),
+                opc_connected=reader.connected,
+                now_ms=_now_ms(),
+            )
+            await asyncio.to_thread(publisher.publish, topic, encode_status(status))
+        except Exception as exc:  # el latido nunca debe detener al gateway
+            logger.warning("No se pudo publicar el estado (%s: %s)", type(exc).__name__, exc)
+
+
 async def report(buffer: StoreAndForwardBuffer, stats: Stats, interval_s: float = 10.0) -> None:
     while True:
         await asyncio.sleep(interval_s)
@@ -121,6 +151,7 @@ async def run_gateway(cfg: GatewayConfig) -> None:
             batcher(cfg, queue, buffer, stats),
             forwarder(cfg, buffer, publisher, stats),
             report(buffer, stats),
+            heartbeat(cfg, buffer, publisher, reader, stats),
         )
     finally:
         publisher.stop()
